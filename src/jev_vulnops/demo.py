@@ -9,6 +9,8 @@ import argparse
 import os
 from typing import Sequence
 
+from dotenv import load_dotenv
+
 from .client import TypeSafeLiveClient
 from .data import VULNS
 from .pipeline import triage_all
@@ -52,6 +54,7 @@ def provider_label() -> str:
 
 
 def run_demo(args: argparse.Namespace) -> int:
+    load_dotenv()  # auto-pick .env from cwd (or parents); explicit env vars win
     if not os.environ.get("TYPESAFE_API_KEY"):
         raise SystemExit(
             "Set TYPESAFE_API_KEY first (either a TypeSafe console key, or an "

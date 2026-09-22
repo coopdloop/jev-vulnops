@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Demo: vulnerability triage decisions with TypeSafe's System One model (Jev)"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["python-dotenv>=1.0"]
 
 [project.optional-dependencies]
 live = ["typesafe-sdk"]

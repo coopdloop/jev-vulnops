@@ -51,18 +51,17 @@ Either of these works:
    keeps billing in one place.
 
 The SDK reads both env vars on its own; the demo prints which route is active.
+Copy `.env.example` to `.env` — `jev-vulnops` auto-loads it via python-dotenv
+(explicitly set env vars override values from the file).
 
 ```bash
 uv venv
 uv pip install -e '.[live,test]'
 
 # either:
-export TYPESAFE_API_KEY=ts-...                # direct
-# or:
-export TYPESAFE_BASE_URL=https://openrouter.ai/api
-export TYPESAFE_API_KEY=sk-or-...             # OpenRouter
+cp .env.example .env          # set values (direct or OpenRouter route)
 
-uv run jev-vulnops            # hits the live endpoint (jev-1.13)
+uv run jev-vulnops            # auto-loads .env; hits the live endpoint (jev-1.13)
 uv run pytest                 # pure-function tests only; no client doubles
 ```
 
