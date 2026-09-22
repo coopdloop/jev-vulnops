@@ -51,6 +51,17 @@ def test_estimate_tokens_counts_state_and_questions():
     assert estimate_tokens(state, ALL_QUESTIONS) > 100
 
 
+def test_provider_label(monkeypatch):
+    from jev_vulnops.demo import provider_label
+
+    monkeypatch.delenv("TYPESAFE_BASE_URL", raising=False)
+    assert provider_label() == "TypeSafe direct"
+    monkeypatch.setenv("TYPESAFE_BASE_URL", "https://openrouter.ai/api")
+    assert provider_label() == "OpenRouter"
+    monkeypatch.setenv("TYPESAFE_BASE_URL", "https://proxy.example.com")
+    assert "custom base" in provider_label()
+
+
 def test_client_requires_sdk_import():
     if importlib.util.find_spec("typesafe_sdk"):
         pytest.skip("typesafe-sdk installed")
@@ -58,3 +69,34 @@ def test_client_requires_sdk_import():
 
     with pytest.raises(RuntimeError, match="typesafe-sdk"):
         TypeSafeLiveClient()
+
+
+def test_mapper_against_real_sdk_types():
+    ts = pytest.importorskip("typesafe_sdk")
+    from jev_vulnops.client import TypeSafeLiveClient
+
+    resp = ts.SystemOneResponse(
+        model="jev-1.13",
+        usage={"input_tokens": 10, "output_tokens": 0},
+        answers={
+            "next_action": ts.ChoiceAnswer(
+                type="choice",
+                choice="sla-remediate",
+                confidence=0.9,
+                probabilities={"sla-remediate": 0.9, "accept-risk": 0.1},
+            ),
+            "exploit_likelihood_30d": ts.ScoreAnswer(
+                type="score",
+                score=0.5,
+                confidence=0.8,
+                legend={0: "low", 1: "elevated"},
+                probabilities={0: 0.3, 1: 0.7},
+            ),
+            "needs_analyst_review": ts.NoulAnswer(type="noul", noul=0.42),
+        },
+    )
+    client = TypeSafeLiveClient.__new__(TypeSafeLiveClient)  # no init: no SDK needed for _map
+    mapped = client._map(resp, ALL_QUESTIONS)
+    assert mapped.choices["next_action"].choice == "sla-remediate"
+    assert abs(mapped.scores["exploit_likelihood_30d"].position - 0.5) < 1e-9
+    assert mapped.nouls["needs_analyst_review"].probability == pytest.approx(0.42)

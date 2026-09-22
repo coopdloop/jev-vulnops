@@ -42,7 +42,11 @@ class SystemOneResponse:
 
 
 class TypeSafeLiveClient:
-    """Thin adapter over `typesafe-sdk`; fails loudly if it is not installed."""
+    """Thin adapter over `typesafe-sdk`; fails loudly if it is not installed.
+
+Validated against typesafe-sdk 0.7.x: responses come back as
+SystemOneResponse(model, usage, answers) with ChoiceAnswer/ScoreAnswer/NoulAnswer.
+"""
 
     def __init__(self) -> None:
         try:
@@ -73,25 +77,24 @@ class TypeSafeLiveClient:
         resp = self._client.system_one(state=dict(state), questions=sdk_questions)
         return self._map(resp, questions)
 
-    def _map(self, resp, questions):  # normalized accessors across SDK versions
+    def _map(self, resp, questions):
         choices: dict[str, ChoiceResult] = {}
         scores: dict[str, ScoreResult] = {}
         nouls: dict[str, NoulResult] = {}
-        raw = getattr(resp, "answers", None) or getattr(resp, "choices", None) or {}
         for name, q in questions.items():
-            v = raw.get(name) if hasattr(raw, "get") else getattr(raw, name, None)
+            v = resp.answers.get(name)
             if isinstance(q, Noul):
-                nouls[name] = NoulResult(probability=float(getattr(v, "probability", v or 0.0)))
+                nouls[name] = NoulResult(probability=float(getattr(v, "noul", 0.0)))
             elif isinstance(q, Score):
                 scores[name] = ScoreResult(
-                    position=float(getattr(v, "position", getattr(v, "score", 0.0))),
-                    probabilities=getattr(v, "probabilities", {}) or {},
+                    position=float(getattr(v, "score", 0.0)),
+                    probabilities=dict(getattr(v, "probabilities", None) or {}),
                     confidence=float(getattr(v, "confidence", 0.0)),
                 )
             else:
                 choices[name] = ChoiceResult(
-                    choice=getattr(v, "choice", getattr(v, "selected", None)),
-                    probabilities=getattr(v, "probabilities", getattr(v, "probs", {})) or {},
+                    choice=getattr(v, "choice", None),
+                    probabilities=dict(getattr(v, "probabilities", None) or {}),
                     confidence=float(getattr(v, "confidence", 0.0)),
                 )
         return SystemOneResponse(choices=choices, scores=scores, nouls=nouls)

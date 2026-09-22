@@ -41,19 +41,39 @@ def _fmt_table(decisions) -> str:
     return "\n".join(lines)
 
 
+def provider_label() -> str:
+    # TYPESAFE_BASE_URL -> OpenRouter or any compatible gateway; direct otherwise.
+    base = os.environ.get("TYPESAFE_BASE_URL")
+    if base and "openrouter" in base:
+        return "OpenRouter"
+    if base:
+        return f"custom base ({base})"
+    return "TypeSafe direct"
+
+
 def run_demo(args: argparse.Namespace) -> int:
     if not os.environ.get("TYPESAFE_API_KEY"):
-        raise SystemExit("Set TYPESAFE_API_KEY first (get a key from the TypeSafe console)")
+        raise SystemExit(
+            "Set TYPESAFE_API_KEY first (either a TypeSafe console key, or an "
+            "OpenRouter key with TYPESAFE_BASE_URL=https://openrouter.ai/api)"
+        )
     client = TypeSafeLiveClient()
     decisions = triage_all(client, VULNS, args.threshold)
 
-    print(f"jev-vulnops triage (live jev-1.13) — {len(decisions)} vulns\n")
+    print(f"jev-vulnops triage (live jev-1.13 via {provider_label()}) — {len(decisions)} vulns\n")
     print(_fmt_table(decisions))
 
     total_tokens = sum(d.input_tokens for d in decisions)
     cost_usd = total_tokens / 1_000_000 * PRICE_PER_MTTOK
+    provider = provider_label()
     print()
-    print(f"Total estimated input tokens: {total_tokens:,} → est. cost ${cost_usd:.6f} (outputs are free)")
+    if provider == "OpenRouter":
+        print("Billing is on your OpenRouter account; responses carry usage.cost.")
+    else:
+        print(
+            f"Estimated input tokens: {total_tokens:,} → est. cost ${cost_usd:.6f} "
+            "(outputs are free)"
+        )
     return 0
 
 

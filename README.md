@@ -38,22 +38,39 @@ For each vulnerability in `jev_vulnops/data.py`:
    locally; the model weighs exposure and exploitability, the surrounding code
    does dates and thresholds. That's the intended integration pattern.
 
-## Run it
+## Get a key (two routes)
+
+Either of these works:
+
+1. **TypeSafe direct.** Create a key in the TypeSafe console and put it in
+   `TYPESAFE_API_KEY`.
+2. **OpenRouter.** OpenRouter routes System One models (`typesafe/jev-1.13`).
+   Set `TYPESAFE_BASE_URL=https://openrouter.ai/api` and put your **OpenRouter**
+   key in `TYPESAFE_API_KEY`. Usage then bills to your OpenRouter account and
+   responses carry `usage.cost`. If you already use OpenRouter elsewhere, this
+   keeps billing in one place.
+
+The SDK reads both env vars on its own; the demo prints which route is active.
 
 ```bash
 uv venv
 uv pip install -e '.[live,test]'
-export TYPESAFE_API_KEY=...   # from the TypeSafe console
+
+# either:
+export TYPESAFE_API_KEY=ts-...                # direct
+# or:
+export TYPESAFE_BASE_URL=https://openrouter.ai/api
+export TYPESAFE_API_KEY=sk-or-...             # OpenRouter
 
 uv run jev-vulnops            # hits the live endpoint (jev-1.13)
 uv run pytest                 # pure-function tests only; no client doubles
 ```
 
-The adapter is `TypeSafeLiveClient` in `jev_vulnops/client.py`: it maps the SDK
-question types into plain config objects and normalizes responses into
-`ChoiceResult` / `ScoreResult` / `NoulResult` dataclasses. SDK response
-accessors vary by version (`response.choices` vs `response.answers` in their
-docs), so `_map` tries both — adjust it to the SDK version you pin.
+The adapter is `TypeSafeLiveClient` in `jev_vulnops/client.py`: it maps the
+plain question config objects to the SDK types and normalizes the SDK's
+`SystemOneResponse(model, usage, answers)` into `ChoiceResult` / `ScoreResult`
+/ `NoulResult` dataclasses. Validated against typesafe-sdk 0.7.x offline; the
+live endpoint itself still needs a key to exercise end-to-end.
 
 ## What it demonstrates
 
