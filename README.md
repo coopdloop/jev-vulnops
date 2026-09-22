@@ -1,79 +1,94 @@
 # jev-vulnops
 
-A live demo of [TypeSafe's System One model **Jev**](https://typesafe.ai/blog/introducing-system-one-models-and-jev)
-applied to **vulnerability operations triage**: unstructured vuln + asset context in,
-typed probabilistic decisions out — in one request, with per-answer calibrated
-probabilities used for routing.
+Vulnerability triage powered by a **System One model** — not an LLM.
+Unstructured vuln + asset context in, typed probabilistic decisions out,
+in one request, in ~100 ms, for ~$0.00002 per decision.
 
-## Why vulnops (and not "logging + metrics")?
+## Why Jev is different
 
-Two applications were on the table:
+LLMs are superhuman at chat — but chat is the wrong interface for automation.
+Every LLM call in a pipeline returns a *string*: it must be parsed, validated,
+retried when malformed, and it always carries some risk of going off the
+rails. Even when you ask for a confidence score, LLMs are overconfident and
+inconsistent — and a model that can't say *when* it's wrong can't automate
+anything unattended.
 
-- **Security logging & metrics.** Log/event classification fits Jev, but the
-  *metrics* half (aggregation, anomaly math, date windows) is squarely in the
-  model's documented weakness zone — Jev is unreliable at counting, arithmetic
-  and date reasoning, and its docs say those jobs stay in code.
-- **Vulnop triage.** Reachability/exploit judgements over CVE text + asset
-  context with a bounded action space (fix now / SLA / accept risk / gather
-  intel) is the canonical "smart if-statement" use case. Confidence thresholds
-  route ambiguous cases to analysts. That's what this demo builds.
+**System One models** (named for Kahneman's fast, intuitive System 1 thinking)
+are built for the opposite job: fast, structured decisions that software can
+use directly. TypeSafe's first System One model, **Jev**, differs from an LLM
+in five fundamental ways:
+
+| | LLMs | Jev (System One) |
+|---|---|---|
+| **Output** | Strings — anything, including hallucinations and type errors | Typed values from options *you* define. Type errors are mathematically impossible |
+| **Sampling** | Sequential, token by token | Parallel — all answers in a single forward pass |
+| **Confidence** | Ask for it, get overconfident guesses | Calibrated probabilities on every answer, always |
+| **Latency** | 3–300 s end-to-end | 70–500 ms end-to-end |
+| **Cost** | $0.20–$10 / Mtok in, ~5× more out | $0.042 / Mtok in, outputs free |
+
+The training method mirrors the philosophy: instead of RLHF (optimize for
+text humans prefer), Jev is trained with **RLCD — Reinforcement Learning for
+Calibrated Decisions** — optimizing for *epistemically honest probabilities*.
+When Jev says 0.95, it should be right ~95% of the time. That's what makes
+confidence thresholds meaningful, and confidence thresholds are what make
+unattended automation safe.
+
+What you give up is text generation. Jev cannot write — no summaries, no
+patches, no prose. The intended architecture is a division of labor:
+**Jev decides, an LLM writes, code does the math.**
+
+## What this repo is
+
+A live, end-to-end demo of that philosophy applied to **vulnerability
+operations triage** — the canonical "smart if-statement" use case. For each
+CVE + asset context, one Jev request answers three questions in parallel:
+
+- `Choice` — best next action: `remediate-now` / `sla-remediate` / `accept-risk` / `needs-intel`
+- `Score` — exploit likelihood in the next 30 days (low → critical)
+- `Noul` — should a human analyst review this? (yes/no probability)
+
+Then **code** — not the model — gates on confidence: high-confidence triage
+is auto-prioritized with SLA due dates; anything ambiguous is escalated to an
+analyst with the full probability distributions attached. Real run on known
+CVEs:
+
+```text
+CVE-2021-44228   payment-gateway   remediate-now    1.00  critical · 1.00    0.26  14d  AUTO
+CVE-2023-22515   confluence-internal sla-remediate   0.40  elevated · 0.49    0.43  30d  ESCALATE
+  escalate CVE-2023-22515: next-action confidence 0.40 < 0.75
+```
+
+Note the second row: KEV-listed and CVSS 10.0, but on an *internal-only*
+asset — Jev weighs the exposure context and declines to auto-triage. That is
+the calibration philosophy working as intended.
+
+## Index
+
+- [Why Jev is different](#why-jev-is-different) — System One philosophy, LLM comparison
+- [What this repo is](#what-this-repo-is) — the demo in one paragraph
+- [The pipeline](#the-pipeline) — state → questions → gate → SLA
+- [Seeing the decision "logic"](#seeing-the-decision-logic) — probabilities as the explanation surface
+- [What Jev sees (and what you control)](#what-jev-sees-and-what-you-control)
+- [Architecture](#architecture) — end-to-end vuln management diagrams
+- [Your own dataset](#your-own-dataset) — input format
+- [Get a key](#get-a-key-two-routes) — TypeSafe direct or OpenRouter
+- [Run it](#run-it) — install, flags, interactive mode
+- [Limits](#limits)
 
 ## The pipeline
 
-See [`docs/end-to-end.md`](docs/end-to-end.md) for the full architecture
-diagram (detection → triage → remediation → verification) and the per-request
-sequence.
-
-For each vulnerability in `jev_vulnops/data.py`:
+For each vulnerability:
 
 1. **Build the state** — CVE description, CVSS/EPSS/KEV flags, and the asset
    context (exposure, criticality tier, data class).
-2. **Ask 3 questions in one request** (`jev_vulnops/questions.py`):
-   - `Choice` — best next action: `remediate-now`, `sla-remediate`,
-     `accept-risk`, `needs-intel`
-   - `Score` — exploit likelihood in the next 30 days on an ordered
-     low/elevated/high/critical scale (probability-weighted position)
-   - `Noul` — should an analyst review this? (one yes/no probability)
-3. **Gate on confidence in code** (`jev_vulnops/pipeline.py`):
-   - next-action confidence ≥ threshold (default 0.75) **and** analyst-review
-     probability < 0.5 → auto-prioritized
-   - otherwise → escalated to an analyst, with the deciding reasons printed
+2. **Ask 3 questions in one request** (`src/jev_vulnops/questions.py`) —
+   answered in parallel against a single encoding of the state.
+3. **Gate on confidence in code** (`src/jev_vulnops/pipeline.py`):
+   next-action confidence ≥ threshold (default 0.75) **and** analyst-review
+   probability < 0.5 → auto-prioritized; otherwise escalated with reasons.
 4. **SLA math stays in code** — due windows (14/30/7/90 days) are computed
-   locally; the model weighs exposure and exploitability, the surrounding code
-   does dates and thresholds. That's the intended integration pattern.
-
-## Get a key (two routes)
-
-Either of these works:
-
-1. **TypeSafe direct.** Create a key in the TypeSafe console and put it in
-   `TYPESAFE_API_KEY`.
-2. **OpenRouter.** OpenRouter routes System One models (`typesafe/jev-1.13`).
-   Set `TYPESAFE_BASE_URL=https://openrouter.ai/api` and put your **OpenRouter**
-   key in `TYPESAFE_API_KEY`. Usage then bills to your OpenRouter account and
-   responses carry `usage.cost`. If you already use OpenRouter elsewhere, this
-   keeps billing in one place.
-
-The SDK reads both env vars on its own; the demo prints which route is active.
-Copy `.env.example` to `.env` — `jev-vulnops` auto-loads it via python-dotenv
-(explicitly set env vars override values from the file).
-
-```bash
-uv venv
-uv pip install -e '.[live,test]'
-
-# either:
-cp .env.example .env          # set values (direct or OpenRouter route)
-
-uv run jev-vulnops            # auto-loads .env; hits the live endpoint
-uv run pytest                 # pure-function tests only; no client doubles
-
-# options:
-uv run jev-vulnops --verbose                    # full probability distributions, model id, usage per vuln
-uv run jev-vulnops --model jev-latest           # pick the model (jev-1.13 / jev-latest / jev-preview)
-uv run jev-vulnops --data my_vulns.json         # your own dataset instead of the built-in fixtures
-uv run jev-vulnops --interactive                # REPL: paste a vuln, see the decision detail
-```
+   locally. Jev is documented to be unreliable at arithmetic and dates, so
+   numbers live in the surrounding code, not the model.
 
 ## Seeing the decision "logic"
 
@@ -93,10 +108,29 @@ CVE-2025-50002 (report-generator):
 `--interactive` is the best way to probe how wording changes move those
 distributions — tweak a description or flip an asset flag and re-ask.
 
+## What Jev sees (and what you control)
+
+- **State**: built per vuln in `pipeline.build_state()` — vuln fields + asset
+  context go in verbatim.
+- **Questions**: `src/jev_vulnops/questions.py` — edit the criteria text to
+  change what Jev is asked.
+- **Model**: `--model jev-1.13` (or aliases `jev-latest` / `jev-preview`);
+  the response's `model` field shows what actually served you.
+- **Routing rule**: `pipeline.disposition()` — pure code; the confidence
+  threshold is `--threshold`.
+
+## Architecture
+
+[`docs/end-to-end.md`](docs/end-to-end.md) has the full Mermaid diagrams:
+detection (scanners) → normalization/enrichment → Jev triage → remediation
+orchestration (Jira / GitHub / Slack tool calls) → verification & metrics —
+and the per-request sequence diagram.
+
 ## Your own dataset
 
-`--data file.json` expects a JSON array of vuln objects (same shape as
-`src/jev_vulnops/data.py`):
+`--data file.json` expects a JSON array of vuln objects — the normalized
+projection a scanner pipeline would produce (scanners don't emit this shape
+natively; see `data/sample_scan.json` for a realistic example with known CVEs):
 
 ```json
 [
@@ -117,40 +151,45 @@ distributions — tweak a description or flip an asset flag and re-ask.
 ]
 ```
 
-## What Jev sees (and what you control)
+## Get a key (two routes)
 
-- **State**: built per vuln in `pipeline.build_state()` — vuln fields + asset
-  context go in verbatim.
-- **Questions**: `src/jev_vulnops/questions.py` — next-action options, the
-  exploit-likelihood scale, and the analyst-review gate. Edit the criteria
-  text there to change what Jev is asked.
-- **Model**: `--model jev-1.13` (or aliases `jev-latest` / `jev-preview`);
-  the response's `model` field shows what actually served you.
-- **Routing rule**: `pipeline.disposition()` — pure code; the confidence
-  threshold is `--threshold`.
+1. **TypeSafe direct.** Create a key in the TypeSafe console and put it in
+   `TYPESAFE_API_KEY`.
+2. **OpenRouter.** OpenRouter routes System One models (`typesafe/jev-1.13`).
+   Set `TYPESAFE_BASE_URL=https://openrouter.ai/api` and put your **OpenRouter**
+   key in `TYPESAFE_API_KEY`. Usage bills to your OpenRouter account and
+   responses carry `usage.cost`.
 
-The adapter is `TypeSafeLiveClient` in `jev_vulnops/client.py`: it maps the
+Copy `.env.example` to `.env` — the demo auto-loads it via python-dotenv
+(explicitly set env vars override the file).
+
+## Run it
+
+```bash
+uv venv
+uv pip install -e '.[live,test]'
+cp .env.example .env          # set values (direct or OpenRouter route)
+
+uv run jev-vulnops            # live triage over the built-in fixtures
+uv run pytest                 # pure-function tests only; no client doubles
+
+# options:
+uv run jev-vulnops --verbose                    # full probability distributions, model id, usage per vuln
+uv run jev-vulnops --model jev-latest           # pick the model (jev-1.13 / jev-latest / jev-preview)
+uv run jev-vulnops --data my_vulns.json         # your own dataset instead of the built-in fixtures
+uv run jev-vulnops --interactive                # REPL: paste a vuln, see the decision detail
+```
+
+The adapter is `TypeSafeLiveClient` in `src/jev_vulnops/client.py`: it maps
 plain question config objects to the SDK types and normalizes the SDK's
 `SystemOneResponse(model, usage, answers)` into `ChoiceResult` / `ScoreResult`
-/ `NoulResult` dataclasses. Validated against typesafe-sdk 0.7.x offline; the
-live endpoint itself still needs a key to exercise end-to-end.
-
-## What it demonstrates
-
-- **Parallel questions, one request** — next action + exploit score + review
-  gate resolved against a single encoding of the state.
-- **Confidence-aware routing** — low-confidence triage is escalated rather than
-  silently auto-applied; escalation reasons are printed with probabilities.
-- **Typed decisions as function calls** — nothing to parse; every answer is a
-  member of a pre-defined option set with probabilities.
-- **Cheap automation economics** — cost printouts at the published rate
-  ($0.042/M input tokens, outputs free) so a run's spend is visible.
+/ `NoulResult` dataclasses. Validated against typesafe-sdk 0.7.x.
 
 ## Limits
 
 - Fixture data is hand-written to exercise the routing rule; swap in your own
   CVE/asset exports to use it seriously.
-- The `Estimate tokens` figure is a strlen/4 heuristic — the console/SDK is the
-  source of truth for real billing.
+- The token estimate is a strlen/4 heuristic — `usage` in the response (and
+  `usage.cost` on OpenRouter) is the source of truth for billing.
 - Without `TYPESAFE_API_KEY` the CLI fails fast by design; there is no offline
   fallback in this repo.
