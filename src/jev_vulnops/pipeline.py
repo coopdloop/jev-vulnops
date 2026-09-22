@@ -12,7 +12,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from .client import SystemOneClient, SystemOneResponse
+from .client import SystemOneResponse, TypeSafeLiveClient
 from .questions import ALL_QUESTIONS
 
 LEVELS = ("low", "elevated", "high", "critical")
@@ -56,8 +56,22 @@ class TriageDecision:
     input_tokens: int = 0
 
 
+def disposition(
+    choice_confidence: float,
+    reviewer_probability: float,
+    threshold: float,
+) -> tuple[str, list[str]]:
+    """Pure routing rule: gate low-confidence / analyst-flagged answers."""
+    reasons: list[str] = []
+    if choice_confidence < threshold:
+        reasons.append(f"next-action confidence {choice_confidence:.2f} < {threshold:.2f}")
+    if reviewer_probability >= 0.5:
+        reasons.append(f"analyst-review probability {reviewer_probability:.2f}")
+    return ("ESCALATE" if reasons else "AUTO"), reasons
+
+
 def triage(
-    client: SystemOneClient,
+    client: TypeSafeLiveClient,
     vuln: Mapping[str, Any],
     threshold: float = 0.75,
 ) -> TriageDecision:
@@ -68,12 +82,11 @@ def triage(
     score = resp.scores.get("exploit_likelihood_30d")
     gate = resp.nouls.get("needs_analyst_review")
 
-    reasons: list[str] = []
-    if choice and choice.confidence < threshold:
-        reasons.append(f"next-action confidence {choice.confidence:.2f} < {threshold:.2f}")
-    if gate and gate.probability >= 0.5:
-        reasons.append(f"analyst-review probability {gate.probability:.2f}")
-    disposition = "ESCALATE" if reasons else "AUTO"
+    decis, reasons = disposition(
+        choice.confidence if choice else 1.0,
+        gate.probability if gate else 0.0,
+        threshold,
+    )
 
     return TriageDecision(
         cve_id=vuln["cve_id"],
@@ -83,7 +96,7 @@ def triage(
         exploit_position=score.position if score else 0.0,
         exploit_bucket=level_bucket(score.position) if score else "unknown",
         reviewer_probability=gate.probability if gate else 0.0,
-        disposition=disposition,
+        disposition=decis,
         reasons=reasons,
         due_days=SLA_DAYS.get(choice.choice) if choice else None,
         input_tokens=estimate_tokens(state, ALL_QUESTIONS),
@@ -91,7 +104,7 @@ def triage(
 
 
 def triage_all(
-    client: SystemOneClient,
+    client: TypeSafeLiveClient,
     vulns: list[Mapping[str, Any]],
     threshold: float = 0.75,
 ) -> list[TriageDecision]:
