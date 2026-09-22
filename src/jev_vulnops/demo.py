@@ -1,25 +1,52 @@
-"""CLI demo: vulnops triage over fixture CVEs against the live Jev endpoint.
+"""CLI demo: vulnops triage over CVEs against the live Jev endpoint.
 
-Requires `TYPESAFE_API_KEY` (and `pip install 'jev-vulnops[live]'`).
+Requires `TYPESAFE_API_KEY` (and `pip install 'jev-vulnops[live]'`); reads `.env`
+automatically. See `--help` for dataset/model/verbose/interactive options.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
-from typing import Sequence
+from pathlib import Path
+from typing import Any, Sequence
 
 from dotenv import load_dotenv
 
 from .client import TypeSafeLiveClient
 from .data import VULNS
-from .pipeline import triage_all
+from .pipeline import TriageDecision, triage, triage_all
 from .questions import ALL_QUESTIONS
 
 PRICE_PER_MTTOK = 0.042  # published $/Million input tokens; outputs are free
 
 
-def _fmt_table(decisions) -> str:
+def provider_label() -> str:
+    # TYPESAFE_BASE_URL -> OpenRouter or any compatible gateway; direct otherwise.
+    base = os.environ.get("TYPESAFE_BASE_URL")
+    if base and "openrouter" in base:
+        return "OpenRouter"
+    if base:
+        return f"custom base ({base})"
+    return "TypeSafe direct"
+
+
+def load_vulns(path: str | None) -> list[dict[str, Any]]:
+    """Dataset: built-in fixtures, or a JSON array of vuln objects (same shape)."""
+    if not path:
+        return VULNS
+    data = json.loads(Path(path).read_text())
+    if not isinstance(data, list):
+        raise SystemExit(f"{path}: expected a JSON array of vuln objects")
+    for v in data:
+        missing = {"cve_id", "description", "asset"} - set(v)
+        if missing:
+            raise SystemExit(f"{path}: vuln {v.get('cve_id', '?')} missing keys: {sorted(missing)}")
+    return data
+
+
+def _fmt_table(decisions: list[TriageDecision]) -> str:
     header = f"{'CVE':<16} {'ASSET':<17} {'NEXT ACTION':<15} {'CONF':>5} {'EXPLOIT(30d)':<19} {'ANALYST?':>9} {'DUE':>4} {'DISPOSITION':<10}"
     lines = [header, "-" * len(header)]
     for d in decisions:
@@ -43,14 +70,52 @@ def _fmt_table(decisions) -> str:
     return "\n".join(lines)
 
 
-def provider_label() -> str:
-    # TYPESAFE_BASE_URL -> OpenRouter or any compatible gateway; direct otherwise.
-    base = os.environ.get("TYPESAFE_BASE_URL")
-    if base and "openrouter" in base:
-        return "OpenRouter"
-    if base:
-        return f"custom base ({base})"
-    return "TypeSafe direct"
+def _fmt_detail(d: TriageDecision) -> str:
+    """Raw answer detail: full probability distributions, confidence, model, usage."""
+    det = d.detail
+    na = det.get("next_action", {})
+    sc = det.get("exploit_likelihood_30d", {})
+    nl = det.get("needs_analyst_review", {})
+    na_probs = ", ".join(f"{k}={v:.2f}" for k, v in na.get("probabilities", {}).items())
+    sc_probs = ", ".join(f"{k}={v:.2f}" for k, v in sc.get("probabilities", {}).items())
+    lines = [
+        f"{d.cve_id} ({d.asset_name}):",
+        f"  next_action: {na.get('choice')} (conf {na.get('confidence', 0.0):.2f}) | {na_probs}",
+        f"  exploit_30d: {sc.get('position', 0.0):.2f} (conf {sc.get('confidence', 0.0):.2f}) | {sc_probs}",
+        f"  analyst_review: {nl.get('probability', 0.0):.2f}",
+    ]
+    if det.get("model"):
+        lines.append(f"  model: {det['model']} | usage: {det.get('usage')}")
+    return "\n".join(lines)
+
+
+def run_interactive(client: TypeSafeLiveClient, threshold: float, model: str | None) -> int:
+    print("Interactive triage — describe a vuln, get the full decision detail. Ctrl-C to quit.\n")
+    try:
+        while True:
+            vuln = {
+                "cve_id": input("cve_id: ") or "CVE-0000-0000",
+                "title": input("title: ") or "untitled",
+                "description": input("description: "),
+                "cvss": float(input("cvss 0-10 [5.0]: ") or 5.0),
+                "epss": float(input("epss 0-1 [0.01]: ") or 0.01),
+                "known_exploited": input("known exploited? (y/N): ").strip().lower() == "y",
+                "asset": {
+                    "name": input("asset name: ") or "asset",
+                    "internet_exposed": input("internet exposed? (y/N): ").strip().lower() == "y",
+                    "criticality_tier": input("criticality tier [tier-2]: ") or "tier-2",
+                    "data_classification": input("data class [internal]: ") or "internal",
+                },
+            }
+            d = triage(client, vuln, threshold, model=model)
+            print()
+            print(_fmt_detail(d))
+            print(f"-> {d.action} | {d.disposition}\n")
+            if input("another? (Y/n): ").strip().lower() == "n":
+                break
+    except (KeyboardInterrupt, EOFError):
+        print()
+    return 0
 
 
 def run_demo(args: argparse.Namespace) -> int:
@@ -61,10 +126,20 @@ def run_demo(args: argparse.Namespace) -> int:
             "OpenRouter key with TYPESAFE_BASE_URL=https://openrouter.ai/api)"
         )
     client = TypeSafeLiveClient()
-    decisions = triage_all(client, VULNS, args.threshold)
 
-    print(f"jev-vulnops triage (live jev-1.13 via {provider_label()}) — {len(decisions)} vulns\n")
+    if args.interactive:
+        return run_interactive(client, args.threshold, args.model)
+
+    vulns = load_vulns(args.data)
+    decisions = triage_all(client, vulns, args.threshold, model=args.model)
+
+    model_tag = args.model or "default"
+    print(f"jev-vulnops triage (live {model_tag} via {provider_label()}) — {len(decisions)} vulns\n")
     print(_fmt_table(decisions))
+    if args.verbose:
+        print()
+        for d in decisions:
+            print(_fmt_detail(d))
 
     total_tokens = sum(d.input_tokens for d in decisions)
     cost_usd = total_tokens / 1_000_000 * PRICE_PER_MTTOK
@@ -83,6 +158,10 @@ def run_demo(args: argparse.Namespace) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jev-vulnops", description=__doc__)
     parser.add_argument("--threshold", type=float, default=0.75, help="next-action confidence gate (default 0.75)")
+    parser.add_argument("--data", help="JSON file with vuln objects (default: built-in fixtures)")
+    parser.add_argument("--model", help="model id, e.g. jev-1.13 / jev-latest / jev-preview")
+    parser.add_argument("--verbose", action="store_true", help="print full probability distributions, model id and usage per vuln")
+    parser.add_argument("--interactive", action="store_true", help="REPL: describe a vuln, see the decision detail")
     return run_demo(parser.parse_args(argv))
 
 

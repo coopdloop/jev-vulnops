@@ -39,6 +39,7 @@ class SystemOneResponse:
     choices: dict[str, ChoiceResult]
     scores: dict[str, ScoreResult]
     nouls: dict[str, NoulResult]
+    raw: Any = None  # untouched SDK response (model id, usage, ...)
 
 
 class TypeSafeLiveClient:
@@ -74,11 +75,14 @@ SystemOneResponse(model, usage, answers) with ChoiceAnswer/ScoreAnswer/NoulAnswe
         return self._sdk_types["noul"](instructions=q.instructions)
 
     def system_one(
-        self, state: Mapping[str, Any], questions: Mapping[str, Choice | Score | Noul]
+        self,
+        state: Mapping[str, Any],
+        questions: Mapping[str, Choice | Score | Noul],
+        model: str | None = None,
     ) -> SystemOneResponse:
         self.calls.append((dict(state), dict(questions)))
         sdk_questions = {name: self._to_sdk(q) for name, q in questions.items()}
-        resp = self._client.system_one(state=dict(state), questions=sdk_questions)
+        resp = self._client.system_one(state=dict(state), questions=sdk_questions, model=model)
         return self._map(resp, questions)
 
     def _map(self, resp, questions):
@@ -104,4 +108,4 @@ SystemOneResponse(model, usage, answers) with ChoiceAnswer/ScoreAnswer/NoulAnswe
                     probabilities=dict(getattr(v, "probabilities", None) or {}),
                     confidence=float(getattr(v, "confidence", 0.0)),
                 )
-        return SystemOneResponse(choices=choices, scores=scores, nouls=nouls)
+        return SystemOneResponse(choices=choices, scores=scores, nouls=nouls, raw=resp)

@@ -61,9 +61,69 @@ uv pip install -e '.[live,test]'
 # either:
 cp .env.example .env          # set values (direct or OpenRouter route)
 
-uv run jev-vulnops            # auto-loads .env; hits the live endpoint (jev-1.13)
+uv run jev-vulnops            # auto-loads .env; hits the live endpoint
 uv run pytest                 # pure-function tests only; no client doubles
+
+# options:
+uv run jev-vulnops --verbose                    # full probability distributions, model id, usage per vuln
+uv run jev-vulnops --model jev-latest           # pick the model (jev-1.13 / jev-latest / jev-preview)
+uv run jev-vulnops --data my_vulns.json         # your own dataset instead of the built-in fixtures
+uv run jev-vulnops --interactive                # REPL: paste a vuln, see the decision detail
 ```
+
+## Seeing the decision "logic"
+
+There is no chain-of-thought to inspect — Jev answers in a single forward
+pass, so the explanation surface is the **probability distribution over the
+options you defined**, plus per-answer confidence. `--verbose` prints all of
+it per vuln:
+
+```text
+CVE-2025-50002 (report-generator):
+  next_action: accept-risk (conf 0.97) | needs-intel=0.00, accept-risk=0.98, sla-remediate=0.02, remediate-now=0.00
+  exploit_30d: 0.01 (conf 0.97) | 0=0.97, 1=0.03, 2=0.00, 3=0.00
+  analyst_review: 0.55
+  model: typesafe/jev-1.13-20260917 | usage: input_tokens=884 output_tokens=100
+```
+
+`--interactive` is the best way to probe how wording changes move those
+distributions — tweak a description or flip an asset flag and re-ask.
+
+## Your own dataset
+
+`--data file.json` expects a JSON array of vuln objects (same shape as
+`src/jev_vulnops/data.py`):
+
+```json
+[
+  {
+    "cve_id": "CVE-2025-12345",
+    "title": "short label",
+    "description": "what the vuln is, in words",
+    "cvss": 9.8,
+    "epss": 0.86,
+    "known_exploited": true,
+    "asset": {
+      "name": "billing-db",
+      "internet_exposed": true,
+      "criticality_tier": "tier-0",
+      "data_classification": "payments"
+    }
+  }
+]
+```
+
+## What Jev sees (and what you control)
+
+- **State**: built per vuln in `pipeline.build_state()` — vuln fields + asset
+  context go in verbatim.
+- **Questions**: `src/jev_vulnops/questions.py` — next-action options, the
+  exploit-likelihood scale, and the analyst-review gate. Edit the criteria
+  text there to change what Jev is asked.
+- **Model**: `--model jev-1.13` (or aliases `jev-latest` / `jev-preview`);
+  the response's `model` field shows what actually served you.
+- **Routing rule**: `pipeline.disposition()` — pure code; the confidence
+  threshold is `--threshold`.
 
 The adapter is `TypeSafeLiveClient` in `jev_vulnops/client.py`: it maps the
 plain question config objects to the SDK types and normalizes the SDK's

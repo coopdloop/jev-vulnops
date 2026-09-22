@@ -51,6 +51,49 @@ def test_estimate_tokens_counts_state_and_questions():
     assert estimate_tokens(state, ALL_QUESTIONS) > 100
 
 
+def test_load_vulns_from_json(tmp_path):
+    from jev_vulnops.demo import load_vulns
+
+    p = tmp_path / "vulns.json"
+    p.write_text('[{"cve_id": "CVE-1", "description": "x", "asset": {"name": "a"}}]')
+    assert load_vulns(str(p))[0]["cve_id"] == "CVE-1"
+
+    bad = tmp_path / "bad.json"
+    bad.write_text('[{"cve_id": "CVE-2"}]')
+    with pytest.raises(SystemExit, match="missing keys"):
+        load_vulns(str(bad))
+
+    not_list = tmp_path / "obj.json"
+    not_list.write_text('{"cve_id": "CVE-3"}')
+    with pytest.raises(SystemExit, match="JSON array"):
+        load_vulns(str(not_list))
+
+
+def test_fmt_detail_shows_distributions():
+    from jev_vulnops.demo import _fmt_detail
+    from jev_vulnops.pipeline import TriageDecision
+
+    d = TriageDecision(
+        cve_id="CVE-1",
+        asset_name="a",
+        action="sla-remediate",
+        action_confidence=0.8,
+        exploit_position=0.5,
+        exploit_bucket="elevated",
+        reviewer_probability=0.1,
+        disposition="AUTO",
+        detail={
+            "model": "typesafe/jev-1.13",
+            "usage": {"input_tokens": 10},
+            "next_action": {"choice": "sla-remediate", "confidence": 0.8, "probabilities": {"sla-remediate": 0.8}},
+            "exploit_likelihood_30d": {"position": 0.5, "confidence": 0.7, "probabilities": {1: 0.7}},
+            "needs_analyst_review": {"probability": 0.1},
+        },
+    )
+    out = _fmt_detail(d)
+    assert "typesafe/jev-1.13" in out and "sla-remediate=0.80" in out
+
+
 def test_provider_label(monkeypatch):
     from jev_vulnops.demo import provider_label
 
@@ -60,6 +103,15 @@ def test_provider_label(monkeypatch):
     assert provider_label() == "OpenRouter"
     monkeypatch.setenv("TYPESAFE_BASE_URL", "https://proxy.example.com")
     assert "custom base" in provider_label()
+
+
+def test_client_requires_sdk_import():
+    if importlib.util.find_spec("typesafe_sdk"):
+        pytest.skip("typesafe-sdk installed")
+    from jev_vulnops.client import TypeSafeLiveClient
+
+    with pytest.raises(RuntimeError, match="typesafe-sdk"):
+        TypeSafeLiveClient()
 
 
 def test_to_sdk_question_construction():
@@ -75,15 +127,6 @@ def test_to_sdk_question_construction():
         if dumped.get("type") == "score":
             assert isinstance(dumped["criteria"], list)
             assert len(dumped["criteria"]) == 4
-
-
-def test_client_requires_sdk_import():
-    if importlib.util.find_spec("typesafe_sdk"):
-        pytest.skip("typesafe-sdk installed")
-    from jev_vulnops.client import TypeSafeLiveClient
-
-    with pytest.raises(RuntimeError, match="typesafe-sdk"):
-        TypeSafeLiveClient()
 
 
 def test_mapper_against_real_sdk_types():
@@ -115,3 +158,4 @@ def test_mapper_against_real_sdk_types():
     assert mapped.choices["next_action"].choice == "sla-remediate"
     assert abs(mapped.scores["exploit_likelihood_30d"].position - 0.5) < 1e-9
     assert mapped.nouls["needs_analyst_review"].probability == pytest.approx(0.42)
+    assert mapped.raw is resp

@@ -54,6 +54,7 @@ class TriageDecision:
     reasons: list[str] = field(default_factory=list)
     due_days: int | None = None
     input_tokens: int = 0
+    detail: dict[str, Any] = field(default_factory=dict)  # per-question probabilities + model/usage
 
 
 def disposition(
@@ -74,9 +75,10 @@ def triage(
     client: TypeSafeLiveClient,
     vuln: Mapping[str, Any],
     threshold: float = 0.75,
+    model: str | None = None,
 ) -> TriageDecision:
     state = build_state(vuln)
-    resp: SystemOneResponse = client.system_one(state, ALL_QUESTIONS)
+    resp: SystemOneResponse = client.system_one(state, ALL_QUESTIONS, model=model)
 
     choice = resp.choices.get("next_action")
     score = resp.scores.get("exploit_likelihood_30d")
@@ -100,6 +102,21 @@ def triage(
         reasons=reasons,
         due_days=SLA_DAYS.get(choice.choice) if choice else None,
         input_tokens=estimate_tokens(state, ALL_QUESTIONS),
+        detail={
+            "model": getattr(resp.raw, "model", None),
+            "usage": getattr(resp.raw, "usage", None),
+            "next_action": {
+                "choice": choice.choice if choice else None,
+                "confidence": choice.confidence if choice else 0.0,
+                "probabilities": dict(choice.probabilities) if choice else {},
+            },
+            "exploit_likelihood_30d": {
+                "position": score.position if score else 0.0,
+                "confidence": score.confidence if score else 0.0,
+                "probabilities": dict(score.probabilities) if score else {},
+            },
+            "needs_analyst_review": {"probability": gate.probability if gate else 0.0},
+        },
     )
 
 
@@ -107,5 +124,6 @@ def triage_all(
     client: TypeSafeLiveClient,
     vulns: list[Mapping[str, Any]],
     threshold: float = 0.75,
+    model: str | None = None,
 ) -> list[TriageDecision]:
-    return [triage(client, v, threshold) for v in vulns]
+    return [triage(client, v, threshold, model=model) for v in vulns]
