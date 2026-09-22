@@ -20,6 +20,10 @@ Two applications were on the table:
 
 ## The pipeline
 
+See [`docs/end-to-end.md`](docs/end-to-end.md) for the full architecture
+diagram (detection → triage → remediation → verification) and the per-request
+sequence.
+
 For each vulnerability in `jev_vulnops/data.py`:
 
 1. **Build the state** — CVE description, CVSS/EPSS/KEV flags, and the asset
