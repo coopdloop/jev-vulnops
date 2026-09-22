@@ -1,0 +1,114 @@
+[
+  {
+    "cve_id": "CVE-2021-44228",
+    "title": "Log4Shell: Apache Log4j2 JNDI remote code execution",
+    "description": "Apache Log4j2 versions 2.0-beta9 through 2.14.1 process attacker-controlled JNDI lookups in log messages, allowing unauthenticated remote code execution. Public exploits are widespread and the flaw is listed in CISA KEV with sustained mass exploitation.",
+    "cvss": 10.0,
+    "epss": 0.94,
+    "known_exploited": true,
+    "asset": {
+      "name": "payment-gateway",
+      "internet_exposed": true,
+      "criticality_tier": "tier-0",
+      "data_classification": "payments"
+    }
+  },
+  {
+    "cve_id": "CVE-2023-4966",
+    "title": "Citrix Bleed: NetScaler ADC/Gateway session hijacking",
+    "description": "Sensitive information disclosure in NetScaler ADC and NetScaler Gateway allows hijacking of authenticated sessions without credentials. Exploitation observed in the wild against unpatched appliances; listed in CISA KEV.",
+    "cvss": 9.4,
+    "epss": 0.92,
+    "known_exploited": true,
+    "asset": {
+      "name": "netscaler-gateway",
+      "internet_exposed": true,
+      "criticality_tier": "tier-1",
+      "data_classification": "corporate"
+    }
+  },
+  {
+    "cve_id": "CVE-2024-3400",
+    "title": "PAN-OS GlobalProtect command injection",
+    "description": "A command injection in the GlobalProtect feature of PAN-OS allows an unauthenticated attacker to execute arbitrary code with root privileges on the firewall. Volexity reported zero-day exploitation beginning March 2024; listed in CISA KEV.",
+    "cvss": 10.0,
+    "epss": 0.55,
+    "known_exploited": true,
+    "asset": {
+      "name": "panw-perimeter-fw",
+      "internet_exposed": true,
+      "criticality_tier": "tier-1",
+      "data_classification": "corporate"
+    }
+  },
+  {
+    "cve_id": "CVE-2023-34362",
+    "title": "MOVEit Transfer SQL injection leading to RCE",
+    "description": "A SQL injection vulnerability in MOVEit Transfer could allow an unauthenticated attacker to gain access to the database and achieve remote code execution. Exploited at scale by the Cl0p ransomware group in 2023; listed in CISA KEV.",
+    "cvss": 9.8,
+    "epss": 0.97,
+    "known_exploited": true,
+    "asset": {
+      "name": "file-transfer-svc",
+      "internet_exposed": true,
+      "criticality_tier": "tier-2",
+      "data_classification": "confidential"
+    }
+  },
+  {
+    "cve_id": "CVE-2023-22515",
+    "title": "Atlassian Confluence privilege escalation",
+    "description": "A broken access control vulnerability in Confluence Data Center and Server allows an unauthenticated attacker to create a Confluence administrator account. Exploited in the wild; listed in CISA KEV.",
+    "cvss": 10.0,
+    "epss": 0.75,
+    "known_exploited": true,
+    "asset": {
+      "name": "confluence-internal",
+      "internet_exposed": false,
+      "criticality_tier": "tier-2",
+      "data_classification": "internal"
+    }
+  },
+  {
+    "cve_id": "CVE-2023-44487",
+    "title": "HTTP/2 Rapid Reset denial of service",
+    "description": "The HTTP/2 protocol allows a denial of service through rapid stream resets, exploited in record-breaking DDoS attacks during 2023. Any HTTP/2-capable endpoint may be affected; listed in CISA KEV.",
+    "cvss": 7.5,
+    "epss": 0.30,
+    "known_exploited": true,
+    "asset": {
+      "name": "public-api-edge",
+      "internet_exposed": true,
+      "criticality_tier": "tier-1",
+      "data_classification": "public"
+    }
+  },
+  {
+    "cve_id": "CVE-2023-48788",
+    "title": "FortiClient EMS SQL injection",
+    "description": "An SQL injection vulnerability in FortiClient Enterprise Management Server allows an unauthenticated attacker to execute unauthorized code or commands via specially crafted requests. Listed in CISA KEV after observed exploitation.",
+    "cvss": 9.3,
+    "epss": 0.21,
+    "known_exploited": true,
+    "asset": {
+      "name": "ems-mgmt-console",
+      "internet_exposed": false,
+      "criticality_tier": "tier-1",
+      "data_classification": "corporate"
+    }
+  },
+  {
+    "cve_id": "CVE-2023-29489",
+    "title": "cPanel XSS via error page reflection",
+    "description": "A reflected cross-site scripting vulnerability in cPanel allows execution of arbitrary JavaScript in the context of the user's browser via a crafted URL. Exploitation requires user interaction; no confirmed in-the-wild exploitation.",
+    "cvss": 6.1,
+    "epss": 0.02,
+    "known_exploited": false,
+    "asset": {
+      "name": "shared-hosting-panel",
+      "internet_exposed": true,
+      "criticality_tier": "tier-3",
+      "data_classification": "internal"
+    }
+  }
+]
