@@ -62,6 +62,21 @@ def test_provider_label(monkeypatch):
     assert "custom base" in provider_label()
 
 
+def test_to_sdk_question_construction():
+    ts = pytest.importorskip("typesafe_sdk")
+    from jev_vulnops.client import TypeSafeLiveClient
+
+    client = TypeSafeLiveClient.__new__(TypeSafeLiveClient)  # no network init
+    client._sdk_types = {"choice": ts.Choice, "score": ts.Score, "noul": ts.Noul}
+    for q in ALL_QUESTIONS.values():
+        sdk_q = client._to_sdk(q)
+        dumped = sdk_q.model_dump()
+        assert dumped["instructions"]
+        if dumped.get("type") == "score":
+            assert isinstance(dumped["criteria"], list)
+            assert len(dumped["criteria"]) == 4
+
+
 def test_client_requires_sdk_import():
     if importlib.util.find_spec("typesafe_sdk"):
         pytest.skip("typesafe-sdk installed")
@@ -87,7 +102,7 @@ def test_mapper_against_real_sdk_types():
             ),
             "exploit_likelihood_30d": ts.ScoreAnswer(
                 type="score",
-                score=0.5,
+                score=1.5,
                 confidence=0.8,
                 legend={0: "low", 1: "elevated"},
                 probabilities={0: 0.3, 1: 0.7},

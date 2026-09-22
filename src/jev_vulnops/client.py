@@ -66,7 +66,11 @@ SystemOneResponse(model, usage, answers) with ChoiceAnswer/ScoreAnswer/NoulAnswe
         if isinstance(q, Choice):
             return self._sdk_types["choice"](instructions=q.instructions, criteria=dict(q.criteria))
         if isinstance(q, Score):
-            return self._sdk_types["score"](instructions=q.instructions, criteria=dict(q.criteria))
+            # SDK Score.criteria: ordered sequence of level descriptions, one per score.
+            return self._sdk_types["score"](
+                instructions=q.instructions,
+                criteria=[{"name": k, "description": v} for k, v in q.criteria.items()],
+            )
         return self._sdk_types["noul"](instructions=q.instructions)
 
     def system_one(
@@ -86,8 +90,11 @@ SystemOneResponse(model, usage, answers) with ChoiceAnswer/ScoreAnswer/NoulAnswe
             if isinstance(q, Noul):
                 nouls[name] = NoulResult(probability=float(getattr(v, "noul", 0.0)))
             elif isinstance(q, Score):
+                level_count = max(len(q.criteria), 1)
+                # SDK score is a 0..(levels-1) index; normalize to 0..1.
+                raw = float(getattr(v, "score", 0.0))
                 scores[name] = ScoreResult(
-                    position=float(getattr(v, "score", 0.0)),
+                    position=raw / (level_count - 1) if level_count > 1 else 0.0,
                     probabilities=dict(getattr(v, "probabilities", None) or {}),
                     confidence=float(getattr(v, "confidence", 0.0)),
                 )
