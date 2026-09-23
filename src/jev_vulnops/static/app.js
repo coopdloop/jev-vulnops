@@ -42,6 +42,7 @@ function sevClass(cvss) {
   return "low";
 }
 function fmt(n, digits = 2) { return Number(n).toFixed(digits); }
+function fmtMs(n) { return n ? `${Math.round(n)} ms` : "—"; }
 
 function typeChip(t) { return `<span class="chip-type t-${t}">${t}</span>`; }
 
@@ -117,6 +118,8 @@ function renderKpis() {
     : "—";
   const cost = rs.reduce((s, r) => s + (r.detail?.usage?.cost || 0), 0);
   $("kCost").textContent = cost > 0 ? "$" + cost.toFixed(5) : "$0";
+  const lat = rs.map((r) => r.latency_ms).filter((v) => v > 0);
+  $("kLat").textContent = lat.length ? fmtMs(lat.reduce((s, v) => s + v, 0) / lat.length) : "—";
 }
 
 /* ---------------- shared renderers ---------------- */
@@ -177,6 +180,7 @@ function feedCardDone(d) {
       <span class="disp ${d.disposition}">${d.disposition}</span>
       <span class="action" style="color:${ACTION_COLORS[d.action] || "inherit"}">${esc(d.action)}</span>
       <span class="due">${d.due_days ? d.due_days + "d SLA" : ""}</span>
+      <span class="ms" title="Jev response time">⏱ ${fmtMs(d.latency_ms)}</span>
     </div>
     <div class="bars">
       <div class="bar-row"><span class="label">confidence</span>
@@ -213,6 +217,7 @@ function renderDetail() {
     const na = r.detail.next_action;
     const sc = r.detail.exploit_likelihood_30d;
     right = `
+      <div class="answer-meta"><span class="ms">⏱ ${fmtMs(r.latency_ms)} response</span><span class="muted">${esc(r.detail.model || "")}</span></div>
       <h4>${typeChip("choice")} next_action — <span style="color:${ACTION_COLORS[na.choice] || "inherit"}">${esc(na.choice)}</span> <span style="color:${confColor(na.confidence)}">(conf ${fmt(na.confidence)})</span></h4>
       ${bars(na.probabilities, na.choice, "choice")}
       <h4>${typeChip("score")} exploit_likelihood_30d — <span style="color:${levelColor(r.exploit_position)}">${esc(r.exploit_bucket)} · ${fmt(r.exploit_position)}</span> <span style="color:${confColor(sc.confidence)}">(conf ${fmt(sc.confidence)})</span></h4>
@@ -322,7 +327,7 @@ async function pgSend() {
       return;
     }
     const resp = data.response;
-    $("pgStatus").textContent = `${resp.model} · ${JSON.stringify(resp.usage)}`;
+    $("pgStatus").textContent = `${resp.model} · ${fmtMs(data.latency_ms)} · ${JSON.stringify(resp.usage)}`;
     let html = "";
     for (const [name, a] of Object.entries(resp.answers || {})) html += renderPgAnswer(name, a);
     html += payloadDetails({ state: st, questions: qs }, resp);

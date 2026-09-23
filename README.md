@@ -134,19 +134,22 @@ dependencies) that mimics a traditional vuln management console:
 
 - **Sidebar** — searchable/filterable vuln list (severity dots, disposition
   badges) plus the three Jev classifier definitions with their criteria
-- **KPI cards** — totals, auto vs. escalated, average confidence, cost from
-  response `usage`
+- **KPI cards** — totals, auto vs. escalated, average confidence, average
+  Jev response time, cost from response `usage`
 - **Live analysis feed** — Server-Sent Events stream one event per vuln as
-  Jev decides: confidence / exploit / analyst-review bars animate in, with
-  escalation reasons and expandable probability distributions
+  Jev decides: per-request response time, then confidence / exploit /
+  analyst-review bars animate in, with escalation reasons and expandable
+  probability distributions
 - **Payload dropdowns** — every analyzed vuln (feed card and detail pane)
   expands to show the exact request payload (state + questions) and the raw
   response payload Jev returned
 - **API playground tab** — edit the state JSON and the classifiers themselves
   (add/remove questions, rewrite criteria), then `Ask Jev` and see the raw
-  answer rendered as distributions plus the full response payload
+  answer rendered as probability bars plus the measured round-trip time,
+  model id and `usage`
 - **Detail pane** — click any vuln to see the exact state sent to Jev and,
-  once analyzed, its full distributions and the serving model id
+  once analyzed, its response time, full distributions and the serving
+  model id
 
 Threshold slider and model selector in the header apply to the next run.
 `--port` changes the port (default 8765); `--data` swaps the dataset.

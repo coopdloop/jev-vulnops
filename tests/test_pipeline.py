@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from jev_vulnops.data import VULNS
 from jev_vulnops.pipeline import (
     SLA_DAYS,
     build_state,
@@ -165,6 +166,34 @@ def test_to_sdk_question_construction():
         if dumped.get("type") == "score":
             assert isinstance(dumped["criteria"], list)
             assert len(dumped["criteria"]) == 4
+
+
+def test_triage_records_response_time():
+    ts = pytest.importorskip("typesafe_sdk")
+    from jev_vulnops.client import TypeSafeLiveClient
+    from jev_vulnops.pipeline import triage
+
+    resp = ts.SystemOneResponse(
+        model="jev-1.13",
+        usage={"input_tokens": 10, "output_tokens": 0},
+        answers={
+            "next_action": ts.ChoiceAnswer(
+                type="choice", choice="remediate-now", confidence=0.9, probabilities={"remediate-now": 0.9}
+            ),
+            "exploit_likelihood_30d": ts.ScoreAnswer(
+                type="score", score=3.0, confidence=0.8, legend={0: "low"}, probabilities={0: 0.2}
+            ),
+            "needs_analyst_review": ts.NoulAnswer(type="noul", noul=0.2),
+        },
+    )
+    mapped = TypeSafeLiveClient.__new__(TypeSafeLiveClient)._map(resp, ALL_QUESTIONS)
+
+    class StubClient:
+        def system_one(self, state, questions, model=None):
+            return mapped
+
+    decision = triage(StubClient(), VULNS[0], threshold=0.75)
+    assert decision.latency_ms >= 0.0
 
 
 def test_mapper_against_real_sdk_types():

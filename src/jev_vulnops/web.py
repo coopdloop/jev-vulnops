@@ -8,6 +8,7 @@ lands so the UI shows the classifiers working in real time.
 from __future__ import annotations
 
 import json
+import time
 import webbrowser
 from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -68,12 +69,14 @@ def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]]):
             length = int(self.headers.get("Content-Length", 0))
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
+                started = time.perf_counter()
                 raw = client.ask_raw(
                     body.get("state") or {},
                     body.get("questions") or {},
                     model=body.get("model") or None,
                 )
-                self._json({"ok": True, "response": raw})
+                latency_ms = round((time.perf_counter() - started) * 1000, 1)
+                self._json({"ok": True, "latency_ms": latency_ms, "response": raw})
             except Exception as exc:
                 self._json({"ok": False, "error": str(exc)}, 400)
 

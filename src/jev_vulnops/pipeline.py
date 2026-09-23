@@ -9,6 +9,7 @@ Design follows the published guidance:
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -54,6 +55,7 @@ class TriageDecision:
     reasons: list[str] = field(default_factory=list)
     due_days: int | None = None
     input_tokens: int = 0
+    latency_ms: float = 0.0  # wall-clock time of the single Jev request
     detail: dict[str, Any] = field(default_factory=dict)  # per-question probabilities + model/usage
 
 
@@ -89,7 +91,9 @@ def triage(
     model: str | None = None,
 ) -> TriageDecision:
     state = build_state(vuln)
+    started = time.perf_counter()
     resp: SystemOneResponse = client.system_one(state, ALL_QUESTIONS, model=model)
+    latency_ms = (time.perf_counter() - started) * 1000
 
     choice = resp.choices.get("next_action")
     score = resp.scores.get("exploit_likelihood_30d")
@@ -118,6 +122,7 @@ def triage(
         reasons=reasons,
         due_days=SLA_DAYS.get(choice.choice) if choice else None,
         input_tokens=estimate_tokens(state, ALL_QUESTIONS),
+        latency_ms=round(latency_ms, 1),
         detail={
             "model": getattr(resp.raw, "model", None),
             "usage": usage,
