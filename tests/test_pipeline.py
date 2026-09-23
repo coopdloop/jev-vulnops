@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 
 import pytest
 
@@ -132,6 +133,10 @@ def test_web_static_files_exist():
 
     for name in ("index.html", "app.js", "style.css"):
         assert (STATIC / name).is_file(), name
+    # The bars are spans: without display:block the browser ignores their
+    # width/height and every probability bar renders as an empty track.
+    css = (STATIC / "style.css").read_text()
+    assert re.search(r"\.bar-fill\s*\{[^}]*display:\s*block", css), ".bar-fill must be block-level"
     frame = _sse("vuln_done", {"cve_id": "CVE-1"})
     assert frame.startswith(b"event: vuln_done\n") and b'"CVE-1"' in frame
     payload = _questions_payload()

@@ -241,8 +241,9 @@ main { padding: 18px 22px 40px; overflow-y: auto; display: flex; flex-direction:
 .bars { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
 .bar-row { display: grid; grid-template-columns: 150px 1fr 46px; align-items: center; gap: 10px; font-size: 12px; }
 .bar-row .label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 11px; }
-.bar-track { background: var(--bg); border-radius: 5px; height: 7px; overflow: hidden; }
-.bar-fill { height: 100%; background: var(--accent); border-radius: 5px; transition: width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* Spans stay inline unless blockified: width/height would be ignored on the fill. */
+.bar-track { display: block; background: var(--bg); border-radius: 5px; height: 7px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 5px; transition: width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .bar-fill.winner { background: var(--ok); }
 .bar-row .val { text-align: right; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
