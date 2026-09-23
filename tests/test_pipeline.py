@@ -105,6 +105,28 @@ def test_provider_label(monkeypatch):
     assert "custom base" in provider_label()
 
 
+def test_wire_format_questions():
+    from jev_vulnops.questions import wire_all
+
+    wired = wire_all(ALL_QUESTIONS)
+    assert wired["next_action"]["type"] == "choice"
+    assert isinstance(wired["next_action"]["criteria"], dict)
+    assert wired["exploit_likelihood_30d"]["type"] == "score"
+    assert isinstance(wired["exploit_likelihood_30d"]["criteria"], list)
+    assert wired["exploit_likelihood_30d"]["criteria"][0]["name"] == "low"
+    assert wired["needs_analyst_review"]["type"] == "noul"
+
+
+def test_ask_raw_rejects_unknown_type():
+    ts = pytest.importorskip("typesafe_sdk")
+    from jev_vulnops.client import TypeSafeLiveClient
+
+    client = TypeSafeLiveClient.__new__(TypeSafeLiveClient)
+    client._sdk_types = {"choice": ts.Choice, "score": ts.Score, "noul": ts.Noul}
+    with pytest.raises(ValueError, match="unknown question type"):
+        client.ask_raw({}, {"q": {"type": "bogus"}})
+
+
 def test_web_static_files_exist():
     from jev_vulnops.web import STATIC, _questions_payload, _sse
 

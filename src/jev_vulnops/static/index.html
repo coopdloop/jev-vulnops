@@ -4,11 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>jev-vulnops — System One triage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header>
-  <div class="brand">jev<span class="brand-dim">-vulnops</span></div>
+  <div class="brand">
+    <span class="logo">◆</span> jev<span class="brand-dim">-vulnops</span>
+  </div>
   <div class="meta">
     <span class="badge" id="providerBadge">live</span>
     <span class="badge" id="modelBadge">jev</span>
@@ -26,7 +30,7 @@
       <option value="jev-latest">jev-latest</option>
       <option value="jev-preview">jev-preview</option>
     </select>
-    <button id="runBtn">▶ Run triage</button>
+    <button id="runBtn" class="btn-primary">▶ Run triage</button>
   </div>
 </header>
 
@@ -48,22 +52,56 @@
   </aside>
 
   <main>
-    <section class="kpis">
-      <div class="kpi"><div class="kpi-num" id="kTotal">0</div><div class="kpi-label">vulnerabilities</div></div>
-      <div class="kpi"><div class="kpi-num ok" id="kAuto">0</div><div class="kpi-label">auto-prioritized</div></div>
-      <div class="kpi"><div class="kpi-num warn" id="kEsc">0</div><div class="kpi-label">escalated</div></div>
-      <div class="kpi"><div class="kpi-num" id="kConf">—</div><div class="kpi-label">avg confidence</div></div>
-      <div class="kpi"><div class="kpi-num" id="kCost">$0</div><div class="kpi-label">cost (usage)</div></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="playground">API playground</button>
+    </nav>
+
+    <section id="tab-overview" class="tabpage active">
+      <section class="kpis">
+        <div class="kpi"><div class="kpi-num" id="kTotal">0</div><div class="kpi-label">vulnerabilities</div></div>
+        <div class="kpi"><div class="kpi-num ok" id="kAuto">0</div><div class="kpi-label">auto-prioritized</div></div>
+        <div class="kpi"><div class="kpi-num warn" id="kEsc">0</div><div class="kpi-label">escalated</div></div>
+        <div class="kpi"><div class="kpi-num" id="kConf">—</div><div class="kpi-label">avg confidence</div></div>
+        <div class="kpi"><div class="kpi-num" id="kCost">$0</div><div class="kpi-label">cost (usage)</div></div>
+      </section>
+
+      <section class="panel feed-panel">
+        <h2>Live analysis <span class="muted" id="feedHint">— press ▶ Run triage</span></h2>
+        <div id="feed" class="feed"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Vulnerability detail</h2>
+        <div id="detail"><p class="muted">Select a vulnerability from the sidebar.</p></div>
+      </section>
     </section>
 
-    <section class="panel feed-panel">
-      <h2>Live analysis <span class="muted" id="feedHint">— press ▶ Run triage</span></h2>
-      <div id="feed" class="feed"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Vulnerability detail</h2>
-      <div id="detail"><p class="muted">Select a vulnerability from the sidebar.</p></div>
+    <section id="tab-playground" class="tabpage">
+      <section class="panel">
+        <h2>API playground <span class="muted">— edit the state and the classifiers, then ask Jev directly</span></h2>
+        <div class="play-grid">
+          <div>
+            <div class="play-head">
+              <h4>state</h4>
+              <button class="btn-ghost" id="loadSelected">load selected vuln</button>
+            </div>
+            <textarea id="pgState" spellcheck="false"></textarea>
+          </div>
+          <div>
+            <div class="play-head">
+              <h4>questions (classifiers)</h4>
+              <button class="btn-ghost" id="resetQuestions">reset to defaults</button>
+            </div>
+            <textarea id="pgQuestions" spellcheck="false"></textarea>
+          </div>
+        </div>
+        <div class="play-actions">
+          <button class="btn-primary" id="pgSend">Ask Jev</button>
+          <span class="muted" id="pgStatus"></span>
+        </div>
+        <div id="pgResult"></div>
+      </section>
     </section>
   </main>
 </div>

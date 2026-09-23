@@ -139,6 +139,12 @@ dependencies) that mimics a traditional vuln management console:
 - **Live analysis feed** — Server-Sent Events stream one event per vuln as
   Jev decides: confidence / exploit / analyst-review bars animate in, with
   escalation reasons and expandable probability distributions
+- **Payload dropdowns** — every analyzed vuln (feed card and detail pane)
+  expands to show the exact request payload (state + questions) and the raw
+  response payload Jev returned
+- **API playground tab** — edit the state JSON and the classifiers themselves
+  (add/remove questions, rewrite criteria), then `Ask Jev` and see the raw
+  answer rendered as distributions plus the full response payload
 - **Detail pane** — click any vuln to see the exact state sent to Jev and,
   once analyzed, its full distributions and the serving model id
 

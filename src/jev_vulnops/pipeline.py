@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from .client import SystemOneResponse, TypeSafeLiveClient
-from .questions import ALL_QUESTIONS
+from .questions import ALL_QUESTIONS, wire_all
 
 LEVELS = ("low", "elevated", "high", "critical")
 
@@ -93,6 +93,7 @@ def triage(
     usage = getattr(resp.raw, "usage", None)
     if usage is not None and hasattr(usage, "model_dump"):
         usage = usage.model_dump()
+    raw_response = resp.raw.model_dump() if hasattr(resp.raw, "model_dump") else resp.raw
 
     return TriageDecision(
         cve_id=vuln["cve_id"],
@@ -109,6 +110,8 @@ def triage(
         detail={
             "model": getattr(resp.raw, "model", None),
             "usage": usage,
+            "request": {"state": state, "questions": wire_all(ALL_QUESTIONS)},
+            "response": raw_response,
             "next_action": {
                 "choice": choice.choice if choice else None,
                 "confidence": choice.confidence if choice else 0.0,

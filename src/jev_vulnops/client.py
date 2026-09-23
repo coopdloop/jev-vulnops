@@ -85,6 +85,29 @@ SystemOneResponse(model, usage, answers) with ChoiceAnswer/ScoreAnswer/NoulAnswe
         resp = self._client.system_one(state=dict(state), questions=sdk_questions, model=model)
         return self._map(resp, questions)
 
+    def ask_raw(
+        self,
+        state: Mapping[str, Any],
+        questions: Mapping[str, Mapping[str, Any]],
+        model: str | None = None,
+    ) -> dict:
+        """Playground path: accept wire-format question dicts, return the raw response."""
+        sdk_qs = {}
+        for name, q in questions.items():
+            qtype = q.get("type")
+            if qtype not in self._sdk_types:
+                raise ValueError(f"unknown question type: {qtype!r}")
+            kwargs: dict[str, Any] = {"instructions": q.get("instructions")}
+            if qtype == "choice":
+                kwargs["criteria"] = q.get("criteria") or {}
+            elif qtype == "score":
+                kwargs["criteria"] = q.get("criteria") or []
+            elif q.get("criteria"):
+                kwargs["criteria"] = q["criteria"]
+            sdk_qs[name] = self._sdk_types[qtype](**kwargs)
+        resp = self._client.system_one(state=dict(state), questions=sdk_qs, model=model)
+        return resp.model_dump() if hasattr(resp, "model_dump") else resp
+
     def _map(self, resp, questions):
         choices: dict[str, ChoiceResult] = {}
         scores: dict[str, ScoreResult] = {}

@@ -1,0 +1,18 @@
+{
+  "id": "b366b6040",
+  "name": "web UI playground smoke",
+  "command": "cd /Users/lariat/Development/jev-vulnops && uv run jev-vulnops --web-ui --port 8792 --data data/sample_scan.json",
+  "status": "killed",
+  "outputPath": ".pi/tasks/session-43254-43254/b366b6040.output",
+  "cwd": "/Users/lariat/Development/jev-vulnops",
+  "startTime": 1790195841412,
+  "endTime": 1790195859634,
+  "exitCode": 143,
+  "signal": null,
+  "pid": 3486,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "notified": false,
+  "notifyOnCompletion": false,
+  "triggerOnCompletion": true
+}

@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .client import TypeSafeLiveClient
 from .pipeline import triage
-from .questions import ALL_QUESTIONS
+from .questions import ALL_QUESTIONS, wire_all
 
 STATIC = Path(__file__).parent / "static"
 MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
@@ -28,17 +28,7 @@ def _sse(event: str, data: Any) -> bytes:
 
 
 def _questions_payload() -> list[dict[str, Any]]:
-    out = []
-    for name, q in ALL_QUESTIONS.items():
-        out.append(
-            {
-                "name": name,
-                "type": type(q).__name__.lower(),
-                "instructions": q.instructions,
-                "criteria": getattr(q, "criteria", None),
-            }
-        )
-    return out
+    return [{"name": name, **q} for name, q in wire_all(ALL_QUESTIONS).items()]
 
 
 def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]]):
@@ -70,6 +60,22 @@ def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]]):
                 self._stream(url.query)
             else:
                 self._json({"error": "not found"}, 404)
+
+        def do_POST(self):
+            url = urlparse(self.path)
+            if url.path != "/api/ask":
+                return self._json({"error": "not found"}, 404)
+            length = int(self.headers.get("Content-Length", 0))
+            try:
+                body = json.loads(self.rfile.read(length) or b"{}")
+                raw = client.ask_raw(
+                    body.get("state") or {},
+                    body.get("questions") or {},
+                    model=body.get("model") or None,
+                )
+                self._json({"ok": True, "response": raw})
+            except Exception as exc:
+                self._json({"ok": False, "error": str(exc)}, 400)
 
         def _static(self, path: str):
             target = (STATIC / path.removeprefix("/static/")).resolve()

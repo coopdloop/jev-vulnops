@@ -80,3 +80,20 @@ ALL_QUESTIONS = {
     "exploit_likelihood_30d": EXPLOIT_30D,
     "needs_analyst_review": ANALYST_REVIEW,
 }
+
+
+def wire(q: Choice | Score | Noul) -> dict:
+    """Serialize a question to the API wire format (what actually goes to Jev)."""
+    if isinstance(q, Choice):
+        return {"type": "choice", "instructions": q.instructions, "criteria": dict(q.criteria)}
+    if isinstance(q, Score):
+        return {
+            "type": "score",
+            "instructions": q.instructions,
+            "criteria": [{"name": k, "description": v} for k, v in q.criteria.items()],
+        }
+    return {"type": "noul", "instructions": q.instructions}
+
+
+def wire_all(questions: Mapping[str, Choice | Score | Noul]) -> dict[str, dict]:
+    return {name: wire(q) for name, q in questions.items()}
