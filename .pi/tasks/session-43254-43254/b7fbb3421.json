@@ -1,0 +1,18 @@
+{
+  "id": "b7fbb3421",
+  "name": "web UI smoke test",
+  "command": "cd /Users/lariat/Development/jev-vulnops && uv run jev-vulnops --web-ui --port 8791 --data data/sample_scan.json",
+  "status": "killed",
+  "outputPath": ".pi/tasks/session-43254-43254/b7fbb3421.output",
+  "cwd": "/Users/lariat/Development/jev-vulnops",
+  "startTime": 1790195496324,
+  "endTime": 1790195510311,
+  "exitCode": 143,
+  "signal": null,
+  "pid": 1406,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "notified": false,
+  "notifyOnCompletion": false,
+  "triggerOnCompletion": true
+}

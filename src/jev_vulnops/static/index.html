@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jev-vulnops — System One triage</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">jev<span class="brand-dim">-vulnops</span></div>
+  <div class="meta">
+    <span class="badge" id="providerBadge">live</span>
+    <span class="badge" id="modelBadge">jev</span>
+    <span class="dot idle" id="statusDot" title="idle"></span>
+  </div>
+  <div class="controls">
+    <label class="slider">
+      threshold
+      <input id="threshold" type="range" min="0.5" max="0.95" step="0.05" value="0.75">
+      <span id="thresholdVal">0.75</span>
+    </label>
+    <select id="modelSel">
+      <option value="">default model</option>
+      <option value="jev-1.13">jev-1.13</option>
+      <option value="jev-latest">jev-latest</option>
+      <option value="jev-preview">jev-preview</option>
+    </select>
+    <button id="runBtn">▶ Run triage</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <input id="search" type="search" placeholder="Search CVE / asset…">
+    <div class="chips">
+      <button class="chip active" data-f="all">All</button>
+      <button class="chip" data-f="AUTO">Auto</button>
+      <button class="chip" data-f="ESCALATE">Escalated</button>
+      <button class="chip" data-f="pending">Pending</button>
+    </div>
+    <ul id="vulnList" class="vuln-list"></ul>
+
+    <div class="classifiers">
+      <h3>Jev classifiers</h3>
+      <div id="classifierList"></div>
+    </div>
+  </aside>
+
+  <main>
+    <section class="kpis">
+      <div class="kpi"><div class="kpi-num" id="kTotal">0</div><div class="kpi-label">vulnerabilities</div></div>
+      <div class="kpi"><div class="kpi-num ok" id="kAuto">0</div><div class="kpi-label">auto-prioritized</div></div>
+      <div class="kpi"><div class="kpi-num warn" id="kEsc">0</div><div class="kpi-label">escalated</div></div>
+      <div class="kpi"><div class="kpi-num" id="kConf">—</div><div class="kpi-label">avg confidence</div></div>
+      <div class="kpi"><div class="kpi-num" id="kCost">$0</div><div class="kpi-label">cost (usage)</div></div>
+    </section>
+
+    <section class="panel feed-panel">
+      <h2>Live analysis <span class="muted" id="feedHint">— press ▶ Run triage</span></h2>
+      <div id="feed" class="feed"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Vulnerability detail</h2>
+      <div id="detail"><p class="muted">Select a vulnerability from the sidebar.</p></div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

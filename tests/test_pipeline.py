@@ -105,6 +105,17 @@ def test_provider_label(monkeypatch):
     assert "custom base" in provider_label()
 
 
+def test_web_static_files_exist():
+    from jev_vulnops.web import STATIC, _questions_payload, _sse
+
+    for name in ("index.html", "app.js", "style.css"):
+        assert (STATIC / name).is_file(), name
+    frame = _sse("vuln_done", {"cve_id": "CVE-1"})
+    assert frame.startswith(b"event: vuln_done\n") and b'"CVE-1"' in frame
+    payload = _questions_payload()
+    assert {q["type"] for q in payload} == {"choice", "score", "noul"}
+
+
 def test_client_requires_sdk_import():
     if importlib.util.find_spec("typesafe_sdk"):
         pytest.skip("typesafe-sdk installed")

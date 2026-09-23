@@ -90,6 +90,10 @@ def triage(
         threshold,
     )
 
+    usage = getattr(resp.raw, "usage", None)
+    if usage is not None and hasattr(usage, "model_dump"):
+        usage = usage.model_dump()
+
     return TriageDecision(
         cve_id=vuln["cve_id"],
         asset_name=vuln["asset"]["name"],
@@ -104,7 +108,7 @@ def triage(
         input_tokens=estimate_tokens(state, ALL_QUESTIONS),
         detail={
             "model": getattr(resp.raw, "model", None),
-            "usage": getattr(resp.raw, "usage", None),
+            "usage": usage,
             "next_action": {
                 "choice": choice.choice if choice else None,
                 "confidence": choice.confidence if choice else 0.0,

@@ -70,6 +70,7 @@ the calibration philosophy working as intended.
 - [Seeing the decision "logic"](#seeing-the-decision-logic) — probabilities as the explanation surface
 - [What Jev sees (and what you control)](#what-jev-sees-and-what-you-control)
 - [Architecture](#architecture) — end-to-end vuln management diagrams
+- [Web UI](#web-ui) — live dashboard with real-time triage stream
 - [Your own dataset](#your-own-dataset) — input format
 - [Get a key](#get-a-key-two-routes) — TypeSafe direct or OpenRouter
 - [Run it](#run-it) — install, flags, interactive mode
@@ -126,6 +127,24 @@ detection (scanners) → normalization/enrichment → Jev triage → remediation
 orchestration (Jira / GitHub / Slack tool calls) → verification & metrics —
 and the per-request sequence diagram.
 
+## Web UI
+
+`uv run jev-vulnops --web-ui` opens a dashboard (stdlib server, no extra
+dependencies) that mimics a traditional vuln management console:
+
+- **Sidebar** — searchable/filterable vuln list (severity dots, disposition
+  badges) plus the three Jev classifier definitions with their criteria
+- **KPI cards** — totals, auto vs. escalated, average confidence, cost from
+  response `usage`
+- **Live analysis feed** — Server-Sent Events stream one event per vuln as
+  Jev decides: confidence / exploit / analyst-review bars animate in, with
+  escalation reasons and expandable probability distributions
+- **Detail pane** — click any vuln to see the exact state sent to Jev and,
+  once analyzed, its full distributions and the serving model id
+
+Threshold slider and model selector in the header apply to the next run.
+`--port` changes the port (default 8765); `--data` swaps the dataset.
+
 ## Your own dataset
 
 `--data file.json` expects a JSON array of vuln objects — the normalized
@@ -178,6 +197,7 @@ uv run jev-vulnops --verbose                    # full probability distributions
 uv run jev-vulnops --model jev-latest           # pick the model (jev-1.13 / jev-latest / jev-preview)
 uv run jev-vulnops --data my_vulns.json         # your own dataset instead of the built-in fixtures
 uv run jev-vulnops --interactive                # REPL: paste a vuln, see the decision detail
+uv run jev-vulnops --web-ui                     # live dashboard with real-time triage stream
 ```
 
 The adapter is `TypeSafeLiveClient` in `src/jev_vulnops/client.py`: it maps

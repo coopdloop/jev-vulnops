@@ -127,6 +127,11 @@ def run_demo(args: argparse.Namespace) -> int:
         )
     client = TypeSafeLiveClient()
 
+    if args.web_ui:
+        from .web import run_web
+
+        return run_web(client, load_vulns(args.data), port=args.port)
+
     if args.interactive:
         return run_interactive(client, args.threshold, args.model)
 
@@ -162,6 +167,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--model", help="model id, e.g. jev-1.13 / jev-latest / jev-preview")
     parser.add_argument("--verbose", action="store_true", help="print full probability distributions, model id and usage per vuln")
     parser.add_argument("--interactive", action="store_true", help="REPL: describe a vuln, see the decision detail")
+    parser.add_argument("--web-ui", action="store_true", help="open the live dashboard (SSE stream of triage decisions)")
+    parser.add_argument("--port", type=int, default=8765, help="web UI port (default 8765)")
     return run_demo(parser.parse_args(argv))
 
 
