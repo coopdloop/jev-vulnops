@@ -12,6 +12,26 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
+/* ---------------- palette ---------------- */
+
+const ACTION_COLORS = {
+  "remediate-now": "#f87171",   // red — urgent
+  "sla-remediate": "#fbbf24",   // amber — scheduled
+  "accept-risk": "#34d399",     // green — accepted
+  "needs-intel": "#818cf8",     // indigo — investigate
+};
+const LEVEL_COLORS = ["#4ade80", "#facc15", "#fb923c", "#f87171"]; // low→critical
+const ACCENT = "#6366f1";
+
+function barColor(label, idx, total, kind, isWinner) {
+  if (kind === "choice") return ACTION_COLORS[label] || (isWinner ? "#34d399" : ACCENT);
+  if (kind === "score") return LEVEL_COLORS[Math.round(idx * (LEVEL_COLORS.length - 1) / Math.max(total - 1, 1))];
+  if (kind === "noul") return label === "yes" ? "#fbbf24" : "#34d399";
+  return isWinner ? "#34d399" : ACCENT;
+}
+function confColor(c) { return c >= 0.75 ? "#34d399" : c >= 0.5 ? "#fbbf24" : "#f87171"; }
+function levelColor(position) { return LEVEL_COLORS[Math.min(3, Math.floor(position * 4))]; }
+
 function esc(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -22,6 +42,23 @@ function sevClass(cvss) {
   return "low";
 }
 function fmt(n, digits = 2) { return Number(n).toFixed(digits); }
+
+function typeChip(t) { return `<span class="chip-type t-${t}">${t}</span>`; }
+
+// Legend values may be plain names or criteria objects ({name, description}).
+function legendName(v, fallback) {
+  if (v == null) return fallback;
+  if (typeof v === "object") return v.name ?? fallback;
+  return String(v);
+}
+
+// Index-keyed probabilities (score) -> legend-labeled, order-preserving map.
+function labelScoreProbs(probabilities, legend) {
+  const out = {};
+  const keys = Object.keys(probabilities || {}).sort((a, b) => Number(a) - Number(b));
+  for (const k of keys) out[legendName((legend || {})[k], k)] = probabilities[k];
+  return out;
+}
 
 /* ---------------- sidebar ---------------- */
 
@@ -60,7 +97,7 @@ function renderQuestions() {
       ? `<details><summary>criteria</summary><pre>${esc(JSON.stringify(q.criteria, null, 2))}</pre></details>`
       : "";
     div.innerHTML = `
-      <div class="qtype">${esc(q.type)}</div>
+      ${typeChip(q.type)}
       <div class="qname">${esc(q.name)}</div>
       <div class="qinstr">${esc(q.instructions || "")}</div>
       ${crit}`;
@@ -84,16 +121,20 @@ function renderKpis() {
 
 /* ---------------- shared renderers ---------------- */
 
-function bars(probabilities, winner) {
-  const rows = Object.entries(probabilities || {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([k, p]) => `
+function bars(probabilities, winner, kind) {
+  const entries = Object.entries(probabilities || {}).map(([k, p], i) => ({ k, p, i }));
+  entries.sort((a, b) => b.p - a.p);
+  const total = entries.length;
+  const rows = entries.map(({ k, p, i }) => {
+    const isWinner = String(k) === String(winner);
+    const color = barColor(k, i, total, kind, isWinner);
+    return `
       <div class="bar-row">
         <span class="label">${esc(k)}</span>
-        <span class="bar-track"><span class="bar-fill ${String(k) === String(winner) ? "winner" : ""}" style="width:${(p * 100).toFixed(1)}%"></span></span>
+        <span class="bar-track"><span class="bar-fill" style="width:${(p * 100).toFixed(1)}%; background:${color}"></span></span>
         <span class="val">${fmt(p)}</span>
-      </div>`)
-    .join("");
+      </div>`;
+  }).join("");
   return `<div class="bars">${rows}</div>`;
 }
 
@@ -134,22 +175,22 @@ function feedCardDone(d) {
       <span class="cve">${esc(d.cve_id)}</span>
       <span class="asset">${esc(d.asset_name)}</span>
       <span class="disp ${d.disposition}">${d.disposition}</span>
-      <span class="action">${esc(d.action)}</span>
+      <span class="action" style="color:${ACTION_COLORS[d.action] || "inherit"}">${esc(d.action)}</span>
       <span class="due">${d.due_days ? d.due_days + "d SLA" : ""}</span>
     </div>
     <div class="bars">
       <div class="bar-row"><span class="label">confidence</span>
-        <span class="bar-track"><span class="bar-fill ${d.action_confidence >= 0.75 ? "winner" : ""}" style="width:${(d.action_confidence * 100).toFixed(1)}%"></span></span>
+        <span class="bar-track"><span class="bar-fill" style="width:${(d.action_confidence * 100).toFixed(1)}%; background:${confColor(d.action_confidence)}"></span></span>
         <span class="val">${fmt(d.action_confidence)}</span></div>
       <div class="bar-row"><span class="label">exploit 30d (${esc(d.exploit_bucket)})</span>
-        <span class="bar-track"><span class="bar-fill" style="width:${(d.exploit_position * 100).toFixed(1)}%"></span></span>
+        <span class="bar-track"><span class="bar-fill" style="width:${(d.exploit_position * 100).toFixed(1)}%; background:${levelColor(d.exploit_position)}"></span></span>
         <span class="val">${fmt(d.exploit_position)}</span></div>
       <div class="bar-row"><span class="label">analyst review</span>
-        <span class="bar-track"><span class="bar-fill" style="width:${(nl.probability * 100).toFixed(1)}%"></span></span>
+        <span class="bar-track"><span class="bar-fill" style="width:${(nl.probability * 100).toFixed(1)}%; background:${nl.probability >= 0.5 ? "#fbbf24" : ACCENT}"></span></span>
         <span class="val">${fmt(nl.probability)}</span></div>
     </div>
     ${d.reasons.length ? `<div class="reason">⚠ ${esc(d.reasons.join("; "))}</div>` : ""}
-    <details class="payload"><summary>▸ next_action distribution</summary>${bars(na.probabilities, na.choice)}</details>
+    <details class="payload"><summary>▸ next_action distribution</summary>${bars(na.probabilities, na.choice, "choice")}</details>
     ${payloadDetails(d.detail.request, d.detail.response)}`;
 }
 
@@ -172,11 +213,12 @@ function renderDetail() {
     const na = r.detail.next_action;
     const sc = r.detail.exploit_likelihood_30d;
     right = `
-      <h4>next_action — ${esc(na.choice)} (conf ${fmt(na.confidence)})</h4>
-      ${bars(na.probabilities, na.choice)}
-      <h4>exploit_likelihood_30d — ${esc(r.exploit_bucket)} · ${fmt(r.exploit_position)} (conf ${fmt(sc.confidence)})</h4>
-      ${bars(sc.probabilities, null)}
-      <h4>needs_analyst_review — ${fmt(r.detail.needs_analyst_review.probability)}</h4>
+      <h4>${typeChip("choice")} next_action — <span style="color:${ACTION_COLORS[na.choice] || "inherit"}">${esc(na.choice)}</span> <span style="color:${confColor(na.confidence)}">(conf ${fmt(na.confidence)})</span></h4>
+      ${bars(na.probabilities, na.choice, "choice")}
+      <h4>${typeChip("score")} exploit_likelihood_30d — <span style="color:${levelColor(r.exploit_position)}">${esc(r.exploit_bucket)} · ${fmt(r.exploit_position)}</span> <span style="color:${confColor(sc.confidence)}">(conf ${fmt(sc.confidence)})</span></h4>
+      ${bars(labelScoreProbs(sc.probabilities, sc.legend), null, "score")}
+      <h4>${typeChip("noul")} needs_analyst_review — ${fmt(r.detail.needs_analyst_review.probability)}</h4>
+      ${bars({ yes: r.detail.needs_analyst_review.probability, no: 1 - r.detail.needs_analyst_review.probability }, null, "noul")}
       ${r.reasons.length ? `<div class="reason">⚠ ${esc(r.reasons.join("; "))}</div>` : ""}
       ${payloadDetails(r.detail.request, r.detail.response)}`;
   }
@@ -249,15 +291,14 @@ function pgPrefillQuestions() {
 
 function renderPgAnswer(name, a) {
   if (a.type === "choice") {
-    return `<div class="pg-answer"><h4>${esc(name)} — choice: ${esc(a.choice)} (conf ${fmt(a.confidence)})</h4>${bars(a.probabilities, a.choice)}</div>`;
+    return `<div class="pg-answer"><h4>${typeChip("choice")} ${esc(name)} — <span style="color:${ACTION_COLORS[a.choice] || "inherit"}">${esc(a.choice)}</span> <span style="color:${confColor(a.confidence)}">(conf ${fmt(a.confidence)})</span></h4>${bars(a.probabilities, a.choice, "choice")}</div>`;
   }
   if (a.type === "score") {
-    const legend = a.legend || {};
-    const probs = {};
-    for (const [k, v] of Object.entries(a.probabilities || {})) probs[legend[k] ?? k] = v;
-    return `<div class="pg-answer"><h4>${esc(name)} — score: ${fmt(a.score)} (conf ${fmt(a.confidence)})</h4>${bars(probs, null)}</div>`;
+    const labeled = labelScoreProbs(a.probabilities, a.legend);
+    const position = (a.score || 0) / Math.max(Object.keys(labeled).length - 1, 1);
+    return `<div class="pg-answer"><h4>${typeChip("score")} ${esc(name)} — <span style="color:${levelColor(position)}">${fmt(a.score)}</span> <span style="color:${confColor(a.confidence)}">(conf ${fmt(a.confidence)})</span></h4>${bars(labeled, null, "score")}</div>`;
   }
-  return `<div class="pg-answer"><h4>${esc(name)} — noul: ${fmt(a.noul)}</h4>${bars({ yes: a.noul, no: 1 - a.noul }, null)}</div>`;
+  return `<div class="pg-answer"><h4>${typeChip("noul")} ${esc(name)} — <span style="color:${a.noul >= 0.5 ? "#fbbf24" : "#34d399"}">${fmt(a.noul)}</span></h4>${bars({ yes: a.noul, no: 1 - a.noul }, null, "noul")}</div>`;
 }
 
 async function pgSend() {

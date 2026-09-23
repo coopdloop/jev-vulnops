@@ -303,3 +303,15 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .play-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
 #pgResult { margin-top: 6px; }
 .pg-answer { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-top: 10px; }
+
+.chip-type {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 2px 8px;
+  border-radius: 5px;
+}
+.t-choice { background: rgba(99, 102, 241, 0.16); color: #818cf8; }
+.t-score { background: rgba(251, 146, 60, 0.16); color: #fb923c; }
+.t-noul { background: rgba(52, 211, 153, 0.16); color: #34d399; }

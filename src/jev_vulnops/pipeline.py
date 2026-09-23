@@ -71,6 +71,17 @@ def disposition(
     return ("ESCALATE" if reasons else "AUTO"), reasons
 
 
+def _score_legend(raw: Any, name: str) -> dict:
+    # Legend may map index -> name str OR -> criteria object ({"name": ...}).
+    try:
+        answers = getattr(raw, "answers", {}) or {}
+        v = answers.get(name)
+        legend = getattr(v, "legend", None)
+        return dict(legend) if legend else {}
+    except Exception:
+        return {}
+
+
 def triage(
     client: TypeSafeLiveClient,
     vuln: Mapping[str, Any],
@@ -121,6 +132,7 @@ def triage(
                 "position": score.position if score else 0.0,
                 "confidence": score.confidence if score else 0.0,
                 "probabilities": dict(score.probabilities) if score else {},
+                "legend": _score_legend(resp.raw, "exploit_likelihood_30d"),
             },
             "needs_analyst_review": {"probability": gate.probability if gate else 0.0},
         },
