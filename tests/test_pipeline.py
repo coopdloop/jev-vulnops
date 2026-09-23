@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -132,8 +135,9 @@ def test_ask_raw_rejects_unknown_type():
 def test_web_static_files_exist():
     from jev_vulnops.web import STATIC, _questions_payload, _sse
 
-    for name in ("index.html", "app.js", "style.css"):
+    for name in ("index.html", "app.js", "routing.js", "style.css"):
         assert (STATIC / name).is_file(), name
+    assert re.search(r'<script src="/static/routing.js"></script>', (STATIC / "index.html").read_text())
     # The bars are spans: without display:block the browser ignores their
     # width/height and every probability bar renders as an empty track.
     css = (STATIC / "style.css").read_text()
@@ -142,6 +146,46 @@ def test_web_static_files_exist():
     assert frame.startswith(b"event: vuln_done\n") and b'"CVE-1"' in frame
     payload = _questions_payload()
     assert {q["type"] for q in payload} == {"choice", "score", "noul"}
+
+
+def test_meta_payload_shares_pricing_and_route():
+    from jev_vulnops.client import MODELS, PRICE_PER_MTTOK
+    from jev_vulnops.questions import ALL_QUESTIONS
+    from jev_vulnops.web import _meta_payload
+
+    meta = _meta_payload(VULNS, "built-in fixtures")
+    assert meta["models"] == list(MODELS)
+    assert meta["price_per_mtok_in"] == PRICE_PER_MTTOK
+    assert meta["questions"] == len(ALL_QUESTIONS)
+    assert meta["vuln_count"] == len(VULNS) and meta["dataset"] == "built-in fixtures"
+
+
+def test_ui_gate_matches_python_gate(tmp_path):
+    """The dashboard re-routes locally while the threshold is dragged, so its
+    mirrored rule must agree with pipeline.disposition() case by case."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    from jev_vulnops.pipeline import disposition
+    from jev_vulnops.web import STATIC
+
+    cases = [
+        [conf, reviewer, threshold]
+        for conf in (0.0, 0.49, 0.5, 0.74, 0.75, 0.751, 0.99)
+        for reviewer in (0.0, 0.49, 0.5, 1.0)
+        for threshold in (0.5, 0.75, 0.95)
+    ]
+    runner = tmp_path / "gate.js"
+    runner.write_text(
+        f"const {{ routeOf }} = require({json.dumps(str(STATIC / 'routing.js'))});\n"
+        f"const cases = {json.dumps(cases)};\n"
+        "const routed = cases.map(([conf, reviewer, threshold]) =>\n"
+        "  routeOf({ action_confidence: conf, reviewer_probability: reviewer }, threshold).disposition);\n"
+        "process.stdout.write(JSON.stringify(routed));\n"
+    )
+    result = subprocess.run([node, str(runner)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [disposition(c[0], c[1], c[2])[0] for c in cases]
 
 
 def test_client_requires_sdk_import():

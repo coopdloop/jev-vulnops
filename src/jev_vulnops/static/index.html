@@ -19,29 +19,27 @@
     <span class="dot idle" id="statusDot" title="idle"></span>
   </div>
   <div class="controls">
-    <label class="slider">
-      threshold
-      <input id="threshold" type="range" min="0.5" max="0.95" step="0.05" value="0.75">
+    <label class="slider" title="Code, not the model, routes each decision: below this next-action confidence the item escalates. Dragging re-routes locally — no new requests.">
+      confidence gate
+      <input id="threshold" type="range" min="0.5" max="0.95" step="0.05" value="0.75" aria-label="confidence gate">
       <span id="thresholdVal">0.75</span>
     </label>
-    <select id="modelSel">
+    <select id="modelSel" aria-label="model">
       <option value="">default model</option>
-      <option value="jev-1.13">jev-1.13</option>
-      <option value="jev-latest">jev-latest</option>
-      <option value="jev-preview">jev-preview</option>
     </select>
     <button id="runBtn" class="btn-primary">▶ Run triage</button>
+    <button id="stopBtn" class="btn-ghost" hidden>■ Stop</button>
   </div>
 </header>
 
 <div class="layout">
   <aside>
-    <input id="search" type="search" placeholder="Search CVE / asset…">
+    <input id="search" type="search" placeholder="Search CVE / asset…" aria-label="Search vulnerabilities">
     <div class="chips">
-      <button class="chip active" data-f="all">All</button>
-      <button class="chip" data-f="AUTO">Auto</button>
-      <button class="chip" data-f="ESCALATE">Escalated</button>
-      <button class="chip" data-f="pending">Pending</button>
+      <button class="chip active" data-f="all">All <span class="chip-n" id="nAll"></span></button>
+      <button class="chip" data-f="AUTO">Auto <span class="chip-n" id="nAuto"></span></button>
+      <button class="chip" data-f="ESCALATE">Escalated <span class="chip-n" id="nEsc"></span></button>
+      <button class="chip" data-f="pending">Pending <span class="chip-n" id="nPending"></span></button>
     </div>
     <ul id="vulnList" class="vuln-list"></ul>
 
@@ -64,12 +62,26 @@
         <div class="kpi"><div class="kpi-num warn" id="kEsc">0</div><div class="kpi-label">escalated</div></div>
         <div class="kpi"><div class="kpi-num" id="kConf">—</div><div class="kpi-label">avg confidence</div></div>
         <div class="kpi"><div class="kpi-num" id="kLat">—</div><div class="kpi-label">avg response time</div></div>
-        <div class="kpi"><div class="kpi-num" id="kCost">$0</div><div class="kpi-label">cost (usage)</div></div>
+        <div class="kpi" id="kCostCard"><div class="kpi-num" id="kCost">$0</div><div class="kpi-label">est. cost / decision</div></div>
       </section>
 
       <section class="panel feed-panel">
-        <h2>Live analysis <span class="muted" id="feedHint">— press ▶ Run triage</span></h2>
+        <div class="panel-head">
+          <h2>Live analysis <span class="muted" id="feedHint">— one request per CVE, three typed answers</span></h2>
+          <label class="sortsel">
+            sort
+            <select id="sortSel" aria-label="sort decisions">
+              <option value="escalated">escalated first</option>
+              <option value="confidence">least confident first</option>
+              <option value="risk">exploit likelihood ↓</option>
+              <option value="cvss">cvss ↓</option>
+              <option value="arrival">arrival order</option>
+            </select>
+          </label>
+        </div>
+        <div class="frow fhead" id="feedHead"></div>
         <div id="feed" class="feed"></div>
+        <div class="runsum muted" id="runSummary"></div>
       </section>
 
       <section class="panel">
@@ -87,19 +99,28 @@
               <h4>state</h4>
               <button class="btn-ghost" id="loadSelected">load selected vuln</button>
             </div>
-            <textarea id="pgState" spellcheck="false"></textarea>
+            <textarea id="pgState" spellcheck="false" aria-label="state JSON"></textarea>
+            <div class="json-err" id="pgStateErr"></div>
           </div>
           <div>
             <div class="play-head">
               <h4>questions (classifiers)</h4>
               <button class="btn-ghost" id="resetQuestions">reset to defaults</button>
             </div>
-            <textarea id="pgQuestions" spellcheck="false"></textarea>
+            <textarea id="pgQuestions" spellcheck="false" aria-label="questions JSON"></textarea>
+            <div class="json-err" id="pgQuestionsErr"></div>
           </div>
         </div>
         <div class="play-actions">
           <button class="btn-primary" id="pgSend">Ask Jev</button>
-          <span class="muted" id="pgStatus"></span>
+          <label class="slider">repeat
+            <select id="pgRuns">
+              <option value="1">×1</option>
+              <option value="3">×3</option>
+              <option value="5">×5</option>
+            </select>
+          </label>
+          <span class="muted" id="pgStatus">⌘/Ctrl + ↵ sends</span>
         </div>
         <div id="pgResult"></div>
       </section>
@@ -107,6 +128,7 @@
   </main>
 </div>
 
+<script src="/static/routing.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

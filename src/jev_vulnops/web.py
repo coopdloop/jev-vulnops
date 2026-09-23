@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .client import TypeSafeLiveClient
+from .client import MODELS, PRICE_PER_MTTOK, TypeSafeLiveClient, provider_label
 from .pipeline import triage
 from .questions import ALL_QUESTIONS, wire_all
 
@@ -32,7 +32,19 @@ def _questions_payload() -> list[dict[str, Any]]:
     return [{"name": name, **q} for name, q in wire_all(ALL_QUESTIONS).items()]
 
 
-def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]]):
+def _meta_payload(vulns: list[dict[str, Any]], dataset: str) -> dict[str, Any]:
+    """Serves what the UI must not hardcode: route, pricing, models, dataset."""
+    return {
+        "provider": provider_label(),
+        "models": list(MODELS),
+        "price_per_mtok_in": PRICE_PER_MTTOK,
+        "questions": len(ALL_QUESTIONS),
+        "vuln_count": len(vulns),
+        "dataset": dataset,
+    }
+
+
+def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]], meta: dict[str, Any]):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):  # quiet
             pass
@@ -57,6 +69,8 @@ def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]]):
                 self._json(vulns)
             elif url.path == "/api/questions":
                 self._json(_questions_payload())
+            elif url.path == "/api/meta":
+                self._json(meta)
             elif url.path == "/api/triage/stream":
                 self._stream(url.query)
             else:
@@ -125,8 +139,9 @@ def run_web(
     vulns: list[dict[str, Any]],
     port: int = 8765,
     open_browser: bool = True,
+    dataset: str = "built-in fixtures",
 ) -> int:
-    server = ThreadingHTTPServer(("127.0.0.1", port), _make_handler(client, vulns))
+    server = ThreadingHTTPServer(("127.0.0.1", port), _make_handler(client, vulns, _meta_payload(vulns, dataset)))
     url = f"http://127.0.0.1:{port}"
     print(f"jev-vulnops web UI at {url} — Ctrl-C to stop")
     if open_browser:

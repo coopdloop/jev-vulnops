@@ -14,22 +14,16 @@ from typing import Any, Sequence
 
 from dotenv import load_dotenv
 
-from .client import TypeSafeLiveClient
+from .client import PRICE_PER_MTTOK, TypeSafeLiveClient, provider_label
 from .data import VULNS
 from .pipeline import TriageDecision, triage, triage_all
 from .questions import ALL_QUESTIONS
 
-PRICE_PER_MTTOK = 0.042  # published $/Million input tokens; outputs are free
-
-
-def provider_label() -> str:
-    # TYPESAFE_BASE_URL -> OpenRouter or any compatible gateway; direct otherwise.
-    base = os.environ.get("TYPESAFE_BASE_URL")
-    if base and "openrouter" in base:
-        return "OpenRouter"
-    if base:
-        return f"custom base ({base})"
-    return "TypeSafe direct"
+__all__ = [
+    "PRICE_PER_MTTOK",  # re-exported: pricing lives in client.py, the CLI and the web UI share it
+    "provider_label",
+    "run_demo",
+]
 
 
 def load_vulns(path: str | None) -> list[dict[str, Any]]:
@@ -130,7 +124,7 @@ def run_demo(args: argparse.Namespace) -> int:
     if args.web_ui:
         from .web import run_web
 
-        return run_web(client, load_vulns(args.data), port=args.port)
+        return run_web(client, load_vulns(args.data), port=args.port, dataset=args.data or "built-in fixtures")
 
     if args.interactive:
         return run_interactive(client, args.threshold, args.model)

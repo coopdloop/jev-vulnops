@@ -130,29 +130,44 @@ and the per-request sequence diagram.
 ## Web UI
 
 `uv run jev-vulnops --web-ui` opens a dashboard (stdlib server, no extra
-dependencies) that mimics a traditional vuln management console:
+dependencies) that mimics a traditional vuln management console. It runs the
+first triage on load, so you land on answers:
 
-- **Sidebar** — searchable/filterable vuln list (severity dots, disposition
-  badges) plus the three Jev classifier definitions with their criteria
+- **Sidebar** — searchable/filterable vuln list; each row shows the inputs that
+  drive the decision (severity dot for CVSS, EPSS, tier, KEV) plus its live
+  disposition, and the three Jev classifier definitions with their criteria
 - **KPI cards** — totals, auto vs. escalated, average confidence, average
-  Jev response time, cost from response `usage`
-- **Live analysis feed** — Server-Sent Events stream one event per vuln as
-  Jev decides: per-request response time, then confidence / exploit /
-  analyst-review bars animate in, with escalation reasons and expandable
-  probability distributions
-- **Payload dropdowns** — every analyzed vuln (feed card and detail pane)
-  expands to show the exact request payload (state + questions) and the raw
-  response payload Jev returned
+  response time, and estimated cost **per decision**, priced from the real
+  `usage.input_tokens` the API reports ($0.042/Mtok in, outputs free; billed
+  cost is used directly when the route reports `usage.cost`)
+- **Live analysis table** — one dense row per CVE, streamed over Server-Sent
+  Events as Jev decides: next action, confidence / exploit-30d / analyst-review
+  bars, response time, routing badge and the reason it escalated. Sortable
+  (escalated first, least confident, exploit likelihood, CVSS), with a running
+  `n/total analyzed` counter and a Stop button
+- **Confidence gate, live** — the header slider re-routes every decision in the
+  browser (`static/routing.js`, a mirror of `pipeline.disposition()`, checked
+  against the Python rule by the test suite). Dragging it costs nothing: the
+  probabilities are already in hand, so no new requests go out. Each confidence
+  bar carries a tick marking where the gate sits
+- **Run summary** — one line under the table: requests made, answers per
+  request, average latency, input tokens, estimated cost
+- **Payload dropdowns** — the exact request payload (state + questions) and the
+  raw response Jev returned
+- **Detail pane** — click any row: the state as facts (CVSS, EPSS, KEV, tier,
+  exposure, data class, description), then the three full distributions, the
+  arithmetic that produced the routing decision, and the model id / tokens /
+  cost for that request
 - **API playground tab** — edit the state JSON and the classifiers themselves
-  (add/remove questions, rewrite criteria), then `Ask Jev` and see the raw
-  answer rendered as probability bars plus the measured round-trip time,
-  model id and `usage`
-- **Detail pane** — click any vuln to see the exact state sent to Jev and,
-  once analyzed, its response time, full distributions and the serving
-  model id
+  (add/remove questions, rewrite criteria); JSON errors surface as you type and
+  ⌘/Ctrl + ↵ sends. `Ask Jev` renders each answer as probability bars plus the
+  request/response payload, and **Repeat ×3/×5** runs the same questions again
+  and shows the mean probability with its spread across runs — the stability you
+  cannot get out of a chat model
 
-Threshold slider and model selector in the header apply to the next run.
-`--port` changes the port (default 8765); `--data` swaps the dataset.
+Threshold slider and model selector apply to the next run (the threshold also
+re-routes the current one locally, for free). `--port` changes the port
+(default 8765); `--data` swaps the dataset.
 
 ## Your own dataset
 

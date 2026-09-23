@@ -8,10 +8,24 @@ for Choice and Score, a confidence value.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .questions import Choice, Noul, Score
+
+PRICE_PER_MTTOK = 0.042  # published $/Million input tokens; outputs are free
+MODELS = ("jev-1.13", "jev-latest", "jev-preview")
+
+
+def provider_label() -> str:
+    # TYPESAFE_BASE_URL -> OpenRouter or any compatible gateway; direct otherwise.
+    base = os.environ.get("TYPESAFE_BASE_URL")
+    if base and "openrouter" in base:
+        return "OpenRouter"
+    if base:
+        return f"custom base ({base})"
+    return "TypeSafe direct"
 
 
 @dataclass(frozen=True)
