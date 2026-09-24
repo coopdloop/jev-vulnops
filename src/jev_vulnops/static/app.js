@@ -516,6 +516,7 @@ function pgLoadSet(id) {
   const wire = Studio.wireFor(id);
   if (!wire) return;
   state.pgSetId = id;
+  if (![...$("pgSet").options].some((o) => o.value === id)) pgSetOptions();
   $("pgSet").value = id;
   $("pgQuestions").value = JSON.stringify(wire, null, 2);
   pgValidate();
@@ -739,6 +740,7 @@ document.querySelectorAll(".tab").forEach((t) => {
   Studio.init(Array.isArray(sets) ? sets : [], {
     useSet: pgUseSet,
     ask: askJev,
+    setsChanged: pgSetOptions,
     getState: () => {
       const parsed = pgValidate();
       if (!parsed) throw new Error("the playground state JSON is invalid");

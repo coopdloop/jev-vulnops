@@ -149,6 +149,7 @@ const Studio = (function () {
     sets = merge(serverSets.map(setFromWire), customs);
     if (!sets.find((s) => s.id === selectedId)) selectedId = sets.length ? sets[0].id : null;
     persist();
+    notifyList();
     render();
   }
 
@@ -176,6 +177,10 @@ const Studio = (function () {
     return out;
   }
 
+  function notifyList() {
+    if (hooks.setsChanged) hooks.setsChanged();
+  }
+
   /* ---------------- set operations ---------------- */
 
   function uniqueId(name, taken) {
@@ -201,6 +206,7 @@ const Studio = (function () {
     selectedId = s.id;
     checked.add(s.id);
     persist();
+    notifyList();
     render();
   }
 
@@ -209,6 +215,7 @@ const Studio = (function () {
     checked.delete(id);
     if (selectedId === id) selectedId = sets.length ? sets[0].id : null;
     persist();
+    notifyList();
     render();
   }
 
@@ -596,6 +603,7 @@ const Studio = (function () {
           sets.push(s);
         }
         persist();
+        notifyList();
         render();
         setStatus(`imported ${entries.length} set(s)`);
       } catch (e) {
