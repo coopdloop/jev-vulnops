@@ -259,6 +259,8 @@ main { padding: 18px 22px 40px; overflow-y: auto; display: flex; flex-direction:
 .frow.escalated { background: rgba(251, 191, 36, 0.05); }
 .frow.selected.escalated { background: rgba(251, 191, 36, 0.09); }
 .frow.pending, .frow.error { cursor: default; animation: none; }
+.feed-empty { padding: 18px 10px; text-align: center; color: var(--muted); font-size: 12.5px; }
+.feed-empty b { color: var(--text); }
 .frow.error .reason { margin: 0; }
 .fhead {
   font-size: 10px;

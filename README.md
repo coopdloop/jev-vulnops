@@ -130,8 +130,9 @@ and the per-request sequence diagram.
 ## Web UI
 
 `uv run jev-vulnops --web-ui` opens a dashboard (stdlib server, no extra
-dependencies) that mimics a traditional vuln management console. It runs the
-first triage on load, so you land on answers:
+dependencies) that mimics a traditional vuln management console. Nothing is
+asked of Jev until you press **▶ Run triage** — each run is one billable request
+per CVE — and the sidebar and detail pane are browsable beforehand:
 
 - **Sidebar** — searchable/filterable vuln list; each row shows the inputs that
   drive the decision (severity dot for CVSS, EPSS, tier, KEV) plus its live

@@ -315,7 +315,9 @@ function feedRow(id) {
 }
 
 function renderFeed() {
-  $("feed").innerHTML = state.order.map(feedRow).join("");
+  $("feed").innerHTML = state.order.length
+    ? state.order.map(feedRow).join("")
+    : `<div class="feed-empty">No decisions yet — press <b>▶ Run triage</b> to ask Jev about all ${state.vulns.length} CVEs, ${state.meta.questions} typed answers per request.</div>`;
 }
 
 function selectVuln(id) {
@@ -388,7 +390,8 @@ function renderDetail() {
       ${stateFacts(v)}
     </div>`;
   if (!r) {
-    box.innerHTML = `<div class="detail-grid">${left}<div><p class="muted">Not analyzed yet — this CVE is still queued in the run.</p></div></div>`;
+    const queued = state.runTotal > 0 ? "this CVE is still queued in the run" : "press ▶ Run triage";
+    box.innerHTML = `<div class="detail-grid">${left}<div><p class="muted">Not analyzed yet — ${queued}.</p></div></div>`;
     return;
   }
   const na = r.detail.next_action;
@@ -679,9 +682,10 @@ document.querySelectorAll(".tab").forEach((t) => {
   $("modelSel").innerHTML =
     `<option value="">default model</option>` +
     (meta.models || []).map((m) => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
-  $("feedHint").textContent = `— ${state.vulns.length} CVEs × ${state.meta.questions} classifiers, one request each`;
+  $("feedHint").textContent =
+    `— ${state.vulns.length} CVEs × ${state.meta.questions} classifiers per request · press ▶ Run triage`;
 
-  renderList(); renderKpis(); renderQuestions(); renderFeedHead(); renderDetail();
+  renderList(); renderKpis(); renderQuestions(); renderFeedHead(); renderFeed(); renderDetail();
   pgPrefillState(); pgPrefillQuestions();
 
   $("runBtn").onclick = run;
@@ -721,5 +725,6 @@ document.querySelectorAll(".tab").forEach((t) => {
     if (row) { e.preventDefault(); selectVuln(row.dataset.cve); }
   };
 
-  if (state.vulns.length) run(); // demo lands on answers, not an empty dashboard
+  // No triage on load: every run is a real billable call per CVE, so the operator
+  // starts it (the sidebar and detail pane work before anything has run).
 })();
