@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from .client import PRICE_PER_MTTOK, TypeSafeLiveClient, provider_label
 from .data import VULNS
 from .pipeline import TriageDecision, triage, triage_all
-from .questions import ALL_QUESTIONS
+from .questions import ALL_QUESTIONS, DEFAULT_SETS, load_classifier_sets
 
 __all__ = [
     "PRICE_PER_MTTOK",  # re-exported: pricing lives in client.py, the CLI and the web UI share it
@@ -124,7 +124,14 @@ def run_demo(args: argparse.Namespace) -> int:
     if args.web_ui:
         from .web import run_web
 
-        return run_web(client, load_vulns(args.data), port=args.port, dataset=args.data or "built-in fixtures")
+        extra = load_classifier_sets(args.classifiers) if args.classifiers else []
+        return run_web(
+            client,
+            load_vulns(args.data),
+            port=args.port,
+            dataset=args.data or "built-in fixtures",
+            sets=[*DEFAULT_SETS, *extra] if extra else None,
+        )
 
     if args.interactive:
         return run_interactive(client, args.threshold, args.model)
@@ -158,6 +165,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="jev-vulnops", description=__doc__)
     parser.add_argument("--threshold", type=float, default=0.75, help="next-action confidence gate (default 0.75)")
     parser.add_argument("--data", help="JSON file with vuln objects (default: built-in fixtures)")
+    parser.add_argument(
+        "--classifiers",
+        help="JSON file with extra classifier sets for the studio (web UI)",
+    )
     parser.add_argument("--model", help="model id, e.g. jev-1.13 / jev-latest / jev-preview")
     parser.add_argument("--verbose", action="store_true", help="print full probability distributions, model id and usage per vuln")
     parser.add_argument("--interactive", action="store_true", help="REPL: describe a vuln, see the decision detail")

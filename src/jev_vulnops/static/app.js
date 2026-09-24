@@ -12,6 +12,7 @@ const state = {
   filter: "all",
   search: "",
   sort: "escalated",
+  pgSetId: null,
   selected: null,
   source: null,
   timer: null,
@@ -491,6 +492,10 @@ function pgPrefillState() {
 }
 
 function pgPrefillQuestions() {
+  // The questions editor is driven by the classifier studio's sets; the built-in
+  // /api/questions payload is only the fallback when the studio failed to load.
+  const sets = Studio.listSets();
+  if (sets.length) return pgLoadSet(sets[0].id);
   const qs = {};
   for (const q of state.questions) {
     const { name, ...rest } = q;
@@ -498,6 +503,43 @@ function pgPrefillQuestions() {
   }
   $("pgQuestions").value = JSON.stringify(qs, null, 2);
   pgValidate();
+}
+
+function pgSetOptions() {
+  $("pgSet").innerHTML = Studio.listSets()
+    .map((s) => `<option value="${esc(s.id)}">${esc(s.name)} · ${s.count} q${s.errors ? " · " + s.errors + " issue(s)" : ""}</option>`)
+    .join("");
+  if (state.pgSetId) $("pgSet").value = state.pgSetId;
+}
+
+function pgLoadSet(id) {
+  const wire = Studio.wireFor(id);
+  if (!wire) return;
+  state.pgSetId = id;
+  $("pgSet").value = id;
+  $("pgQuestions").value = JSON.stringify(wire, null, 2);
+  pgValidate();
+}
+
+// The textarea stays the escape hatch: diverging from the set shows "edited".
+function pgSyncModified() {
+  const badge = $("pgSetModified");
+  const current = $("pgQuestions").value.trim();
+  let pristine = "";
+  try {
+    pristine = JSON.stringify(JSON.parse(current), null, 2);
+  } catch (e) {
+    pristine = current;
+  }
+  const wire = state.pgSetId ? Studio.wireFor(state.pgSetId) : null;
+  const matches = wire && JSON.stringify(JSON.parse(pristine), null, 2) === JSON.stringify(wire, null, 2);
+  badge.hidden = !!matches;
+  return matches;
+}
+
+function pgUseSet(id) {
+  pgLoadSet(id);
+  showTab("playground");
 }
 
 // JSON errors are shown as you type, not only when you press Ask Jev.
@@ -516,7 +558,20 @@ function pgValidate() {
       el.classList.add("invalid");
     }
   }
+  if (ok) pgSyncModified();
   return ok ? out : null;
+}
+
+// One ask, shared by the playground and the studio's answer matrix.
+async function askJev(st, qs) {
+  const res = await fetch("/api/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ state: st, questions: qs, model: $("modelSel").value || null }),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || `request failed (${res.status})`);
+  return data;
 }
 
 function meanSpread(values) {
@@ -629,20 +684,13 @@ async function pgSend() {
   $("pgStatus").textContent = "asking…";
   $("pgResult").innerHTML = "";
   const list = [];
+  $("pgSend").disabled = true;
+  $("pgStatus").textContent = "asking…";
+  $("pgResult").innerHTML = "";
   try {
     for (let i = 0; i < runs; i++) {
       if (runs > 1) $("pgStatus").textContent = `asking ${i + 1}/${runs}…`;
-      const res = await fetch("/api/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state: parsed.state, questions: parsed.questions, model: $("modelSel").value || null }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        $("pgStatus").textContent = res.status === 200 ? "error" : `error ${res.status}`;
-        $("pgResult").innerHTML = `<div class="reason">✕ ${esc(data.error)}</div>`;
-        return;
-      }
+      const data = await askJev(parsed.state, parsed.questions);
       data.request = { state: parsed.state, questions: parsed.questions };
       list.push(data);
       renderPgResults(list);
@@ -651,6 +699,7 @@ async function pgSend() {
     if (runs > 1) $("pgStatus").textContent = `${runs} runs · ${list[0].response.model}`;
   } catch (e) {
     $("pgStatus").textContent = "request failed: " + e.message;
+    if (!list.length) $("pgResult").innerHTML = `<div class="reason">✕ ${esc(e.message)}</div>`;
   } finally {
     $("pgSend").disabled = false;
   }
@@ -658,22 +707,23 @@ async function pgSend() {
 
 /* ---------------- tabs ---------------- */
 
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === name));
+  document.querySelectorAll(".tabpage").forEach((x) => x.classList.toggle("active", x.id === "tab-" + name));
+}
+
 document.querySelectorAll(".tab").forEach((t) => {
-  t.onclick = () => {
-    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
-    document.querySelectorAll(".tabpage").forEach((x) => x.classList.remove("active"));
-    t.classList.add("active");
-    $("tab-" + t.dataset.tab).classList.add("active");
-  };
+  t.onclick = () => showTab(t.dataset.tab);
 });
 
 /* ---------------- boot ---------------- */
 
 (async function boot() {
-  const [meta, vulns, questions] = await Promise.all([
+  const [meta, vulns, questions, sets] = await Promise.all([
     fetch("/api/meta").then((r) => r.json()).catch(() => ({})),
     fetch("/api/vulns").then((r) => r.json()),
     fetch("/api/questions").then((r) => r.json()),
+    fetch("/api/classifier-sets").then((r) => r.json()).catch(() => []),
   ]);
   state.meta = { price: meta.price_per_mtok_in ?? 0.042, questions: meta.questions ?? 3 };
   state.vulns = vulns;
@@ -686,13 +736,23 @@ document.querySelectorAll(".tab").forEach((t) => {
     `— ${state.vulns.length} CVEs × ${state.meta.questions} classifiers per request · press ▶ Run triage`;
 
   renderList(); renderKpis(); renderQuestions(); renderFeedHead(); renderFeed(); renderDetail();
-  pgPrefillState(); pgPrefillQuestions();
+  Studio.init(Array.isArray(sets) ? sets : [], {
+    useSet: pgUseSet,
+    ask: askJev,
+    getState: () => {
+      const parsed = pgValidate();
+      if (!parsed) throw new Error("the playground state JSON is invalid");
+      return parsed.state;
+    },
+  });
+  pgPrefillState(); pgSetOptions(); pgPrefillQuestions();
 
   $("runBtn").onclick = run;
   $("stopBtn").onclick = () => stopRun(false);
   $("pgSend").onclick = pgSend;
   $("loadSelected").onclick = pgPrefillState;
   $("resetQuestions").onclick = pgPrefillQuestions;
+  $("pgSet").onchange = (e) => pgLoadSet(e.target.value);
   $("search").oninput = (e) => { state.search = e.target.value; renderList(); renderFeed(); };
   $("sortSel").onchange = (e) => { state.sort = e.target.value; renderFeed(); };
   $("threshold").oninput = (e) => {

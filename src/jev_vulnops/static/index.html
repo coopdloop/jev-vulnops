@@ -52,6 +52,7 @@
   <main>
     <nav class="tabs">
       <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="studio">Classifier studio</button>
       <button class="tab" data-tab="playground">API playground</button>
     </nav>
 
@@ -90,6 +91,30 @@
       </section>
     </section>
 
+    <section id="tab-studio" class="tabpage">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Classifier studio <span class="muted">— build a matrix of classifiers, then use or test it from the API playground</span></h2>
+          <div class="studio-tools">
+            <button class="btn-ghost" id="newSet">+ new set</button>
+            <button class="btn-ghost" id="duplicateSet">duplicate</button>
+            <label class="btn-ghost filebtn" for="importSets">import</label>
+            <input type="file" id="importSets" accept="application/json,.json" hidden>
+            <button class="btn-ghost" id="exportSets">export</button>
+            <button class="btn-ghost" id="restoreSets">restore built-ins</button>
+          </div>
+        </div>
+        <div class="studio-grid">
+          <div class="sets-col">
+            <h4>sets <span class="muted"><span id="nSets">0</span> total · <span id="nChecked">0</span> checked</span></h4>
+            <ul id="setList" class="set-list"></ul>
+            <p class="muted tip">Tick sets to include them in the answer matrix. Edits are kept in this browser; export to share them as <code>--classifiers</code> JSON.</p>
+          </div>
+          <div id="setEditor" class="editor-col"></div>
+        </div>
+      </section>
+    </section>
+
     <section id="tab-playground" class="tabpage">
       <section class="panel">
         <h2>API playground <span class="muted">— edit the state and the classifiers, then ask Jev directly</span></h2>
@@ -105,7 +130,11 @@
           <div>
             <div class="play-head">
               <h4>questions (classifiers)</h4>
-              <button class="btn-ghost" id="resetQuestions">reset to defaults</button>
+              <div class="play-head-actions">
+                <select id="pgSet" aria-label="classifier set"></select>
+                <span class="tag warn" id="pgSetModified" hidden>edited</span>
+                <button class="btn-ghost" id="resetQuestions">reset to defaults</button>
+              </div>
             </div>
             <textarea id="pgQuestions" spellcheck="false" aria-label="questions JSON"></textarea>
             <div class="json-err" id="pgQuestionsErr"></div>
@@ -129,6 +158,7 @@
 </div>
 
 <script src="/static/routing.js"></script>
+<script src="/static/studio.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

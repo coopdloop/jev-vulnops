@@ -18,7 +18,7 @@ from jev_vulnops.pipeline import (
     estimate_tokens,
     level_bucket,
 )
-from jev_vulnops.questions import ALL_QUESTIONS, Choice, Score
+from jev_vulnops.questions import ALL_QUESTIONS, Choice, Score, wire_all
 
 
 def test_state_carries_vuln_and_asset():
@@ -135,9 +135,12 @@ def test_ask_raw_rejects_unknown_type():
 def test_web_static_files_exist():
     from jev_vulnops.web import STATIC, _questions_payload, _sse
 
-    for name in ("index.html", "app.js", "routing.js", "style.css"):
+    for name in ("index.html", "app.js", "routing.js", "studio.js", "style.css"):
         assert (STATIC / name).is_file(), name
-    assert re.search(r'<script src="/static/routing.js"></script>', (STATIC / "index.html").read_text())
+    page = (STATIC / "index.html").read_text()
+    assert re.search(r'<script src="/static/routing.js"></script>', page)
+    assert re.search(r'<script src="/static/studio.js"></script>', page)
+    assert 'data-tab="studio"' in page and 'id="tab-studio"' in page and 'id="pgSet"' in page
     # The bars are spans: without display:block the browser ignores their
     # width/height and every probability bar renders as an empty track.
     css = (STATIC / "style.css").read_text()
@@ -158,6 +161,63 @@ def test_meta_payload_shares_pricing_and_route():
     assert meta["price_per_mtok_in"] == PRICE_PER_MTTOK
     assert meta["questions"] == len(ALL_QUESTIONS)
     assert meta["vuln_count"] == len(VULNS) and meta["dataset"] == "built-in fixtures"
+
+
+def test_default_classifier_sets():
+    from jev_vulnops.questions import DEFAULT_SETS, validate_wire_questions
+
+    by_id = {s["id"]: s for s in DEFAULT_SETS}
+    assert set(by_id) == {"baseline", "exposure-first", "action-only", "wide"}
+    assert all(s["builtin"] and s["description"] for s in DEFAULT_SETS)
+    assert len(by_id["action-only"]["questions"]) == 1
+    assert len(by_id["wide"]["questions"]) == 5
+    assert by_id["baseline"]["questions"] == wire_all(ALL_QUESTIONS)
+    for s in DEFAULT_SETS:
+        assert validate_wire_questions(s["questions"], s["id"]) is s["questions"]
+
+
+def test_validate_wire_questions_rejects_bad_sets():
+    from jev_vulnops.questions import validate_wire_questions
+
+    cases = {
+        "empty": {},
+        "spaced name": {"next action": {"type": "choice", "instructions": "x", "criteria": {"a": "1", "b": "2"}}},
+        "bad type": {"q": {"type": "rank", "instructions": "x"}},
+        "no instructions": {"q": {"type": "noul", "instructions": "  "}},
+        "one option": {"q": {"type": "choice", "instructions": "x", "criteria": {"a": "1"}}},
+        "score as dict": {"q": {"type": "score", "instructions": "x", "criteria": {"a": "1", "b": "2"}}},
+        "choice as list": {"q": {"type": "choice", "instructions": "x", "criteria": [{"name": "a"}]}},
+        "blank description": {
+            "q": {"type": "score", "instructions": "x", "criteria": [{"name": "a", "description": ""}, {"name": "b", "description": "y"}]}
+        },
+    }
+    for label, questions in cases.items():
+        with pytest.raises(ValueError, match="q|questions|next action"):
+            validate_wire_questions(questions, label)
+
+
+def test_load_classifier_sets_from_file(tmp_path):
+    from jev_vulnops.questions import load_classifier_sets
+
+    good = tmp_path / "sets.json"
+    good.write_text(
+        json.dumps(
+            {"sets": [{"id": "ops", "name": "Ops view", "questions": {"escalate": {"type": "noul", "instructions": "Escalate?"}}}]}
+        )
+    )
+    loaded = load_classifier_sets(str(good))
+    assert loaded[0]["id"] == "ops" and loaded[0]["name"] == "Ops view"
+    assert loaded[0]["questions"]["escalate"]["type"] == "noul"
+
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"sets": [{"name": "no questions"}]}')
+    with pytest.raises(SystemExit, match="non-empty 'questions'"):
+        load_classifier_sets(str(bad))
+
+    notlist = tmp_path / "obj.json"
+    notlist.write_text('{"foo": 1}')
+    with pytest.raises(SystemExit, match="JSON array"):
+        load_classifier_sets(str(notlist))
 
 
 def test_ui_gate_matches_python_gate(tmp_path):
@@ -210,6 +270,40 @@ def test_to_sdk_question_construction():
         if dumped.get("type") == "score":
             assert isinstance(dumped["criteria"], list)
             assert len(dumped["criteria"]) == 4
+
+
+def test_studio_wire_roundtrip_matches_backend(tmp_path):
+    """The studio edits questions as an array; the API takes the wire map. This
+    checks the studio's conversion against the real payloads the backend ships."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+    from jev_vulnops.questions import DEFAULT_SETS
+    from jev_vulnops.web import STATIC
+
+    fixture = tmp_path / "sets.json"
+    fixture.write_text(json.dumps({s["id"]: s["questions"] for s in DEFAULT_SETS}))
+    runner = tmp_path / "run-studio.js"
+    runner.write_text(
+        f"const {{ Studio }} = require({json.dumps(str(STATIC / 'studio.js'))});\n"
+        "const fs = require('fs');\n"
+        "const sets = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));\n"
+        "const out = {};\n"
+        "for (const [id, wire] of Object.entries(sets)) out[id] = Studio.toWire(Studio.questionsFromWire(wire));\n"
+        "out.__good = Studio.validateSet({ name: 'x', questions: [{ name: 'q', type: 'noul', instructions: 'yes?', criteria: [] }] });\n"
+        "out.__bad = Studio.validateSet({ name: '', questions: [\n"
+        "  { name: 'next action', type: 'choice', instructions: '', criteria: [{ name: 'a', description: '' }] },\n"
+        "  { name: 'next action', type: 'score', instructions: 'y', criteria: [] },\n"
+        "] });\n"
+        "process.stdout.write(JSON.stringify(out));\n"
+    )
+    result = subprocess.run([node, str(runner), str(fixture)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    for s in DEFAULT_SETS:
+        assert out[s["id"]] == s["questions"], f"studio rewrote {s['id']}"
+    assert out["__good"] == []
+    assert len(out["__bad"]) >= 5, out["__bad"]
 
 
 def test_triage_records_response_time():

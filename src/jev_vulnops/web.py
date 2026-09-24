@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .client import MODELS, PRICE_PER_MTTOK, TypeSafeLiveClient, provider_label
 from .pipeline import triage
-from .questions import ALL_QUESTIONS, wire_all
+from .questions import ALL_QUESTIONS, DEFAULT_SETS, wire_all
 
 STATIC = Path(__file__).parent / "static"
 MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
@@ -44,7 +44,7 @@ def _meta_payload(vulns: list[dict[str, Any]], dataset: str) -> dict[str, Any]:
     }
 
 
-def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]], meta: dict[str, Any]):
+def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]], meta: dict[str, Any], sets: list[dict[str, Any]]):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):  # quiet
             pass
@@ -71,6 +71,8 @@ def _make_handler(client: TypeSafeLiveClient, vulns: list[dict[str, Any]], meta:
                 self._json(_questions_payload())
             elif url.path == "/api/meta":
                 self._json(meta)
+            elif url.path == "/api/classifier-sets":
+                self._json(sets)
             elif url.path == "/api/triage/stream":
                 self._stream(url.query)
             else:
@@ -140,8 +142,13 @@ def run_web(
     port: int = 8765,
     open_browser: bool = True,
     dataset: str = "built-in fixtures",
+    sets: list[dict[str, Any]] | None = None,
 ) -> int:
-    server = ThreadingHTTPServer(("127.0.0.1", port), _make_handler(client, vulns, _meta_payload(vulns, dataset)))
+    classifier_sets = list(sets) if sets else list(DEFAULT_SETS)
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", port),
+        _make_handler(client, vulns, _meta_payload(vulns, dataset), classifier_sets),
+    )
     url = f"http://127.0.0.1:{port}"
     print(f"jev-vulnops web UI at {url} — Ctrl-C to stop")
     if open_browser:

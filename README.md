@@ -70,7 +70,7 @@ the calibration philosophy working as intended.
 - [Seeing the decision "logic"](#seeing-the-decision-logic) — probabilities as the explanation surface
 - [What Jev sees (and what you control)](#what-jev-sees-and-what-you-control)
 - [Architecture](#architecture) — end-to-end vuln management diagrams
-- [Web UI](#web-ui) — live dashboard with real-time triage stream
+- [Web UI](#web-ui) — live dashboard, classifier studio, API playground
 - [Your own dataset](#your-own-dataset) — input format
 - [Get a key](#get-a-key-two-routes) — TypeSafe direct or OpenRouter
 - [Run it](#run-it) — install, flags, interactive mode
@@ -159,16 +159,29 @@ per CVE — and the sidebar and detail pane are browsable beforehand:
   exposure, data class, description), then the three full distributions, the
   arithmetic that produced the routing decision, and the model id / tokens /
   cost for that request
-- **API playground tab** — edit the state JSON and the classifiers themselves
-  (add/remove questions, rewrite criteria); JSON errors surface as you type and
-  ⌘/Ctrl + ↵ sends. `Ask Jev` renders each answer as probability bars plus the
-  request/response payload, and **Repeat ×3/×5** runs the same questions again
-  and shows the mean probability with its spread across runs — the stability you
-  cannot get out of a chat model
+- **API playground tab** — pick a classifier set from the dropdown (or edit the
+  JSON directly) and the state, then `Ask Jev`: answers render as probability
+  bars plus the request/response payload, JSON errors surface as you type,
+  ⌘/Ctrl + ↵ sends, and a summary line reports requests / answers / latency /
+  tokens / cost. **Repeat ×3/×5** runs the same questions again and shows the
+  mean probability with its spread across runs — the stability you cannot get
+  out of a chat model
+- **Classifier studio tab** — build classifiers as a matrix (question ×
+  type / instructions / criteria) and save them as named sets. Four ship with the
+  demo (`baseline`, `exposure first`, `action only`, `wide` with 5 questions);
+  add, duplicate, reorder, import and export your own, and the editor refuses to
+  run anything the API would reject. **Use in API playground** loads a set into
+  the playground's question editor; **Test selected sets ▶** asks Jev the same
+  state with several sets at once and prints an *answer matrix* — rows are sets,
+  columns are every question, cells are the chosen option / expected score /
+  P(yes) with confidence, so a wording change shows up as a moved number instead
+  of a hunch. Sets persist in the browser; export them and pass the file back
+  with `--classifiers` to ship a set with the repo
 
 Threshold slider and model selector apply to the next run (the threshold also
 re-routes the current one locally, for free). `--port` changes the port
-(default 8765); `--data` swaps the dataset.
+(default 8765); `--data` swaps the dataset; `--classifiers file.json` adds sets
+to the studio.
 
 ## Your own dataset
 
@@ -223,6 +236,7 @@ uv run jev-vulnops --model jev-latest           # pick the model (jev-1.13 / jev
 uv run jev-vulnops --data my_vulns.json         # your own dataset instead of the built-in fixtures
 uv run jev-vulnops --interactive                # REPL: paste a vuln, see the decision detail
 uv run jev-vulnops --web-ui                     # live dashboard with real-time triage stream
+uv run jev-vulnops --web-ui --classifiers my_sets.json  # add classifier sets to the studio
 ```
 
 The adapter is `TypeSafeLiveClient` in `src/jev_vulnops/client.py`: it maps
