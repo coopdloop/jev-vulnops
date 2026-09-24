@@ -1,0 +1,80 @@
+{
+  "sets": [
+    {
+      "id": "ransomware-blast-radius",
+      "name": "Ransomware blast radius",
+      "description": "Not 'is it exploitable' but 'how far does encryption spread and what does containment cost'. Five questions, one request. Read alongside the baseline set: the routing answer often survives, the blast radius does not.",
+      "questions": {
+        "containment_action": {
+          "type": "choice",
+          "instructions": "Choose the containment move for ransomware exposure on this asset, weighing how much of the estate the asset can reach. Containment is about distance, not patch difficulty.",
+          "criteria": {
+            "isolate-now": "The asset is internet-exposed or tier-0/tier-1: an intrusion here is one hop from systems that would stop the business. Pull it from the network before patching.",
+            "monitor-close": "Reachable but low blast radius: tier-2 or below, no payments or PII classification. Tighten monitoring and egress rules rather than isolating.",
+            "patch-window": "Internal-only asset where the normal patch cadence is sufficient containment; no special isolation is warranted.",
+            "needs-intel": "The state does not say what this asset can reach, so containment cannot be judged. Ask the asset owner for segment and dependency data."
+          }
+        },
+        "encryption_blast_radius": {
+          "type": "score",
+          "instructions": "If this asset is encrypted by ransomware, how much of the estate is dragged down with it? Score the reachability, not the vulnerability itself.",
+          "criteria": [
+            { "name": "contained", "description": "Loss of this asset alone is an incident nobody outside the team notices; tier-3 or lower with no shared dependencies." },
+            { "name": "department", "description": "One business function stops: an internal service such as a wiki, CI runner or report generator." },
+            { "name": "site", "description": "A whole site or product line degrades: tier-1, or a service that many teams depend on." },
+            { "name": "estate-wide", "description": "Company-wide outage or extortion leverage: internet-exposed tier-0 holding payments or regulated data." }
+          ]
+        },
+        "dwell_time_suspected": {
+          "type": "score",
+          "instructions": "Given only the CVE text and exposure in the state, how long could an attacker plausibly have been present before detection? Pre-authentication remote code execution on an exposed endpoint implies a longer window than a use-after-free behind an admin network.",
+          "criteria": [
+            { "name": "none", "description": "No credible path in: unauthenticated access is impossible from the state given." },
+            { "name": "hours", "description": "Reachable, but exploitation would be noisy and short-lived before detection." },
+            { "name": "days", "description": "A quiet foothold is plausible: reachable service with no signal that anyone looked." },
+            { "name": "weeks", "description": "Pre-auth remote code execution on an internet-exposed asset with active exploitation reported." }
+          ]
+        },
+        "backup_restorable": {
+          "type": "noul",
+          "instructions": "Answer yes only if the state supports a realistic restore-without-paying path. The state carries no backup evidence for any asset, so for a payments-classified tier-0 system the honest answer is no; for a low-tier internal tool with no data classification value, yes is defensible."
+        },
+        "extortion_leverage": {
+          "type": "noul",
+          "instructions": "Answer yes if data stolen from this asset would be worth money or publicity to an attacker: payments or PII classification, or a tier-0 business-critical role."
+        }
+      }
+    },
+    {
+      "id": "backup-posture",
+      "name": "Backup posture",
+      "description": "Three questions about recovery rather than intrusion. Useful to compare against ransomware-blast-radius on the same CVE: the two sets disagree on purpose, not on facts.",
+      "questions": {
+        "restore_confidence": {
+          "type": "score",
+          "instructions": "How confident can we be that this asset can be rebuilt from clean copies, judged only from what the state reveals about its role and data?",
+          "criteria": [
+            { "name": "none", "description": "No indication of a tested restore path for stateful systems holding payments or PII." },
+            { "name": "unverified", "description": "Backups are likely to exist because the asset is managed, but nothing in the state says they were restored." },
+            { "name": "partial", "description": "Rebuildable service with mostly reproducible state: a gateway, proxy or runner that can be redeployed." },
+            { "name": "proven", "description": "Stateless or trivially reproducible internal tool where loss is an inconvenience." }
+          ]
+        },
+        "backup_action": {
+          "type": "choice",
+          "instructions": "Pick the follow-up the backup answer implies.",
+          "criteria": {
+            "accept": "Recovery is not a concern for this asset; leave it on the normal schedule.",
+            "verify-backups": "Recovery matters and is unproven: schedule a restore test as a tracked task, not an emergency.",
+            "isolate-and-verify": "High-value data with an unproven restore path: treat recovery as an open risk while containment proceeds.",
+            "needs-intel": "The state says too little about this asset's persistence to choose; ask the owner what state it holds."
+          }
+        },
+        "air_gap_unknown": {
+          "type": "noul",
+          "instructions": "Answer yes when the state gives no evidence about backup isolation, which is the normal case for a scanner export and a genuine reason to escalate rather than assume safety."
+        }
+      }
+    }
+  ]
+}

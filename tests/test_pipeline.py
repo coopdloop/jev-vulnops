@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -270,6 +271,25 @@ def test_to_sdk_question_construction():
         if dumped.get("type") == "score":
             assert isinstance(dumped["criteria"], list)
             assert len(dumped["criteria"]) == 4
+
+
+def test_example_classifier_files_are_loadable():
+    """examples/classifiers-*.json are user-facing: keep them valid and distinct."""
+    from jev_vulnops.questions import load_classifier_sets
+
+    root = Path(__file__).resolve().parent.parent / "examples"
+    files = sorted(root.glob("classifiers-*.json"))
+    assert files, "expected example classifier files"
+    seen: set[str] = set()
+    for path in files:
+        for s in load_classifier_sets(str(path)):
+            assert s["id"] not in seen, f"duplicate set id {s['id']}"
+            seen.add(s["id"])
+            assert s["name"] and s["description"], s["id"]
+            assert len(s["questions"]) >= 3, f"{s['id']}: examples should show a real matrix"
+            types = {q["type"] for q in s["questions"].values()}
+            assert types <= {"choice", "score", "noul"}
+    assert {"steer-toward-urgent", "steer-toward-accept", "ambiguous-by-design"} <= seen
 
 
 def test_studio_wire_roundtrip_matches_backend(tmp_path):

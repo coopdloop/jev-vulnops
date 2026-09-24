@@ -1,0 +1,100 @@
+{
+  "sets": [
+    {
+      "id": "cloud-identity-exposure",
+      "name": "Cloud & identity exposure",
+      "description": "Six questions written for a cloud/security-platform team: blast radius, egress risk and privilege posture instead of patch priority. Compare it against baseline on the same CVE to see how much of the routing answer is framing.",
+      "questions": {
+        "iam_action": {
+          "type": "choice",
+          "instructions": "Choose the identity-side action this finding implies, assuming workload patching proceeds separately.",
+          "criteria": {
+            "rotate-now": "Credentials or tokens reachable from this asset could already be compromised: exposed endpoint, remote code execution, or active exploitation reported.",
+            "scope-down": "No evidence of compromise, but the role or service is over-privileged for what it does; narrow permissions while the fix ships.",
+            "track": "Internal, low-value, no privilege concern implied by the state: record it and move on.",
+            "needs-intel": "The state does not reveal what permissions or secrets this workload holds; ask the platform team."
+          }
+        },
+        "tenant_blast_radius": {
+          "type": "score",
+          "instructions": "What share of the cloud estate becomes reachable once this workload is owned?",
+          "criteria": [
+            { "name": "single-workload", "description": "Compromise stops at this workload; no shared credentials or data path." },
+            { "name": "single-account", "description": "The account or project is affected: other services in the same boundary are exposed." },
+            { "name": "shared-services", "description": "Shared infrastructure such as a TLS terminator, gateway or CI runner sits between this and everything else." },
+            { "name": "whole-org", "description": "Tier-0, internet-exposed and holding payments or PII: an entry point to the organisation." }
+          ]
+        },
+        "data_egress_risk": {
+          "type": "score",
+          "instructions": "Rate the risk that data reachable from this asset leaves the estate.",
+          "criteria": [
+            { "name": "negligible", "description": "No sensitive classification and no reachable store worth exfiltrating." },
+            { "name": "minor", "description": "Internal or corporate data only." },
+            { "name": "significant", "description": "PII or business-sensitive records reachable from the workload." },
+            { "name": "severe", "description": "Payment data or regulated records on an internet-exposed service." }
+          ]
+        },
+        "publicly_reachable": {
+          "type": "noul",
+          "instructions": "Answer yes if an untrusted network can reach this asset as described in the state."
+        },
+        "least_privilege_violated": {
+          "type": "noul",
+          "instructions": "Answer yes when the asset's role implies it holds broader permissions than its function needs: crown-jewel data plus a shared or platform-level role."
+        },
+        "crypto_posture_risk": {
+          "type": "score",
+          "instructions": "Rate the risk that data at rest or in transit on this asset is inadequately protected, judging only from classification and exposure.",
+          "criteria": [
+            { "name": "none", "description": "Nothing sensitive, so protection gaps carry no consequence." },
+            { "name": "minor", "description": "Internal data where weak or undocumented protection would be a quality issue." },
+            { "name": "moderate", "description": "Corporate or customer data with no evidence in the state of encryption at rest." },
+            { "name": "severe", "description": "Payments or PII on an exposed endpoint where transport or storage protection is unknown." }
+          ]
+        }
+      }
+    },
+    {
+      "id": "container-workload",
+      "name": "Container workload",
+      "description": "Four questions for Kubernetes and CI estates, where the interesting variable is neighbour risk rather than the CVE.",
+      "questions": {
+        "workload_action": {
+          "type": "choice",
+          "instructions": "Pick the workload-level response, assuming the image rebuild happens on its own track.",
+          "criteria": {
+            "cordon-and-patch": "Node or cluster escape is plausible on an exposed or privileged workload: drain, rebuild, resume.",
+            "rolling-restart": "The fix is a rebuild away and blast radius is small; roll the fleet on schedule.",
+            "backlog": "Internal, non-privileged, no shared namespace: a normal backlog item.",
+            "needs-intel": "The state does not say whether this workload is privileged or shares a namespace; ask the platform owner."
+          }
+        },
+        "node_escape_likelihood": {
+          "type": "score",
+          "instructions": "How likely is a compromise of this workload to reach the node or other pods?",
+          "criteria": [
+            { "name": "theoretical", "description": "Unprivileged, isolated, no host paths; escape would need a second bug." },
+            { "name": "plausible", "description": "Shared namespace or broad capabilities make escape conceivable but not easy." },
+            { "name": "likely", "description": "Privileged or host-mounted workload on a reachable node." },
+            { "name": "observed", "description": "The described flaw is remote code execution on an internet-facing tier-0 service." }
+          ]
+        },
+        "shared_namespace_risk": {
+          "type": "noul",
+          "instructions": "Answer yes if the workload plausibly shares a network or PID namespace with neighbours, so one compromise is many."
+        },
+        "image_provenance_risk": {
+          "type": "score",
+          "instructions": "Rate the risk from unclear image provenance for this workload.",
+          "criteria": [
+            { "name": "signed-pinned", "description": "Signed and digest-pinned in a registry with policy enforcement." },
+            { "name": "signed-only", "description": "Signed but moving by tag; a rebuild may pull something different." },
+            { "name": "unsigned", "description": "No signature evidence for a workload running near sensitive data." },
+            { "name": "unknown", "description": "The state says nothing about where this image came from, and the asset matters." }
+          ]
+        }
+      }
+    }
+  ]
+}

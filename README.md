@@ -71,6 +71,7 @@ the calibration philosophy working as intended.
 - [What Jev sees (and what you control)](#what-jev-sees-and-what-you-control)
 - [Architecture](#architecture) — end-to-end vuln management diagrams
 - [Web UI](#web-ui) — live dashboard, classifier studio, API playground
+- [Example classifier sets](examples/README.md) — eight ready-made sets and the calibration probes
 - [Your own dataset](#your-own-dataset) — input format
 - [Get a key](#get-a-key-two-routes) — TypeSafe direct or OpenRouter
 - [Run it](#run-it) — install, flags, interactive mode
@@ -176,7 +177,10 @@ per CVE — and the sidebar and detail pane are browsable beforehand:
   columns are every question, cells are the chosen option / expected score /
   P(yes) with confidence, so a wording change shows up as a moved number instead
   of a hunch. Sets persist in the browser; export them and pass the file back
-  with `--classifiers` to ship a set with the repo
+  with `--classifiers` to ship a set with the repo. Eight ready-made sets —
+  ransomware blast radius, PCI/SOC 2 evidence, cloud & identity, containers,
+  and three calibration probes — are in
+  [`examples/`](examples/README.md), with measured results for the probes
 
 Threshold slider and model selector apply to the next run (the threshold also
 re-routes the current one locally, for free). `--port` changes the port
@@ -237,6 +241,7 @@ uv run jev-vulnops --data my_vulns.json         # your own dataset instead of th
 uv run jev-vulnops --interactive                # REPL: paste a vuln, see the decision detail
 uv run jev-vulnops --web-ui                     # live dashboard with real-time triage stream
 uv run jev-vulnops --web-ui --classifiers my_sets.json  # add classifier sets to the studio
+uv run jev-vulnops --web-ui --classifiers examples/classifiers-calibration.json  # try the probes
 ```
 
 The adapter is `TypeSafeLiveClient` in `src/jev_vulnops/client.py`: it maps

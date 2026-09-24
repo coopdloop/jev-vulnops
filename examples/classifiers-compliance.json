@@ -1,0 +1,84 @@
+{
+  "sets": [
+    {
+      "id": "pci-soc2-evidence",
+      "name": "PCI / SOC 2 evidence",
+      "description": "The auditor's questions, not the engineer's: is this a control gap, is it in scope, and how long has the clock been running. Six answers in one request.",
+      "questions": {
+        "audit_disposition": {
+          "type": "choice",
+          "instructions": "Decide how this finding would be presented to an auditor, based on whether a control is working, missing, or out of scope.",
+          "criteria": {
+            "evidence-ok": "A functioning control already covers this: internal-only asset, low exploitability, normal patch cadence applies. Attach the evidence and move on.",
+            "exception-request": "The control cannot be met as written but risk is bounded; raise a time-boxed exception with the compensating control named.",
+            "control-gap": "A control that should exist is missing on an in-scope system: internet-exposed, payments or PII classification, or actively exploited.",
+            "out-of-scope": "The asset does not belong in the audit boundary at all; record the exclusion rationale."
+          }
+        },
+        "control_gap_severity": {
+          "type": "score",
+          "instructions": "Grade the size of the control gap for this finding, independent of who owns fixing it.",
+          "criteria": [
+            { "name": "cosmetic", "description": "Documentation or naming issue; no control is actually absent." },
+            { "name": "minor", "description": "A control is late or partially applied on a low-value internal asset." },
+            { "name": "major", "description": "A required control is absent on an in-scope system, but exposure is limited." },
+            { "name": "reportable", "description": "A required control is absent on an internet-exposed in-scope system, or the flaw is already being exploited." }
+          ]
+        },
+        "cardholder_data_in_scope": {
+          "type": "noul",
+          "instructions": "Answer yes if this asset's data classification puts it inside the cardholder data environment: payments data is in scope, internal or corporate data generally is not."
+        },
+        "needs_compensating_control": {
+          "type": "noul",
+          "instructions": "Answer yes if remediation cannot be completed before the audit and a compensating control must be documented instead: exposure plus a missing control is the pattern."
+        },
+        "finding_age_pressure": {
+          "type": "score",
+          "instructions": "Estimate how much of the remediation window has already been consumed. Known-exploited or widely exploited flaws have effectively no remaining grace period; quiet internal findings have plenty.",
+          "criteria": [
+            { "name": "under-7-days", "description": "Fresh finding on a low-risk asset; the standard window is intact." },
+            { "name": "7-to-30-days", "description": "Normal SLA territory: schedule it inside the current cycle." },
+            { "name": "31-to-90-days", "description": "The window has slipped; expect an exception or an escalation." },
+            { "name": "over-90-days", "description": "Long past due, or the flaw is actively exploited so the clock is irrelevant." }
+          ]
+        },
+        "scope_ambiguous": {
+          "type": "noul",
+          "instructions": "Answer yes when the state does not make the audit boundary decidable: the asset name, tier or data classification is too thin to say whether it is in scope."
+        }
+      }
+    },
+    {
+      "id": "regulatory-notification",
+      "name": "Regulatory notification",
+      "description": "A narrower set for legal handoff: would this trigger a notification duty, and who has to hear about it first.",
+      "questions": {
+        "notification_likelihood": {
+          "type": "score",
+          "instructions": "How likely is it that an incident on this asset creates a notification duty under GDPR, state breach laws or contractual obligations?",
+          "criteria": [
+            { "name": "unlikely", "description": "No personal or payment data and no business-critical role; nothing to notify." },
+            { "name": "possible", "description": "Corporate data or a tier-2 role; a duty depends on facts not in the state." },
+            { "name": "likely", "description": "Payments or PII classification, or an exposed system where personal data is plausible." },
+            { "name": "imminent", "description": "Actively exploited, internet-exposed, and holding regulated data." }
+          ]
+        },
+        "notification_path": {
+          "type": "choice",
+          "instructions": "Choose the first communication step, not the legal conclusion.",
+          "criteria": {
+            "no-action": "No notification duty is plausible from the state; record the decision and close.",
+            "log-internally": "Track it in the risk register; no external party needs to know yet.",
+            "counsel-review": "The duty is arguable and the facts are thin: route to counsel before committing to anything.",
+            "notify-regulator": "The duty is clear from exposure plus regulated data; start the clock and notify."
+          }
+        },
+        "personal_data_impact": {
+          "type": "noul",
+          "instructions": "Answer yes if a breach of this asset would plausibly affect identified individuals, judged from data classification and the asset's role."
+        }
+      }
+    }
+  ]
+}

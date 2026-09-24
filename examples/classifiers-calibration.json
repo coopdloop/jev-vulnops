@@ -1,0 +1,97 @@
+{
+  "sets": [
+    {
+      "id": "steer-toward-urgent",
+      "name": "Rubric probe: urgent",
+      "description": "Identical question names to the baseline set, criteria written so that almost anything reads as urgent. Check it against baseline in the answer matrix: the numbers should move, and Jev should stay confident while doing it, because the rubric really does say so.",
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Pick the next action. Assume attackers are always looking for this class of bug and that unpatched exposure is itself an incident.",
+          "criteria": {
+            "remediate-now": "Any remote code execution, authentication bypass, session or data exposure, or any finding on an internet-exposed or tier-0/tier-1 asset. Default here.",
+            "sla-remediate": "Reserved for purely local issues on low-tier assets with no data classification value.",
+            "accept-risk": "Only when the vulnerable component is stated to be absent or unreachable in the description.",
+            "needs-intel": "Only when the asset name itself is missing."
+          }
+        },
+        "exploit_likelihood_30d": {
+          "type": "score",
+          "instructions": "Score the chance of exploitation in 30 days, assuming any publicly described vulnerability is eventually attempted.",
+          "criteria": [
+            { "name": "low", "description": "The vulnerable path is documented as unreachable in this deployment." },
+            { "name": "elevated", "description": "Internal-only and no known exploitation, but the bug class is common." },
+            { "name": "high", "description": "A public description exists, or the asset is reachable by some users." },
+            { "name": "critical", "description": "Internet-exposed, or CVSS above 7, or exploitation reported anywhere." }
+          ]
+        },
+        "needs_analyst_review": {
+          "type": "noul",
+          "instructions": "Answer yes only if the description contradicts itself; a urgent-looking answer needs no second opinion."
+        }
+      }
+    },
+    {
+      "id": "steer-toward-accept",
+      "name": "Rubric probe: accept",
+      "description": "The mirror image of the urgent probe: same question names, criteria written to protect engineering time. Same state, opposite rubric, and the answer matrix shows exactly which cells moved.",
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Pick the next action. Assume the estate is patching continuously and that most published CVEs never become a real incident here.",
+          "criteria": {
+            "remediate-now": "Only for confirmed active exploitation against this exact product on an internet-exposed tier-0 asset.",
+            "sla-remediate": "A clear, reachable attack path on a business-critical asset; otherwise not urgent.",
+            "accept-risk": "The common case: severity alone, a PoC somewhere, or an internal asset with no evidence of targeting. Document and move on.",
+            "needs-intel": "When the affected version or code path is unclear."
+          }
+        },
+        "exploit_likelihood_30d": {
+          "type": "score",
+          "instructions": "Score the chance this specific asset is exploited within 30 days, requiring evidence of targeting rather than capability.",
+          "criteria": [
+            { "name": "low", "description": "No evidence anyone is attacking this product; the overwhelming majority of findings." },
+            { "name": "elevated", "description": "Exploit code exists and the asset is reachable from a trusted network." },
+            { "name": "high", "description": "Exploit code exists and the asset is internet-exposed." },
+            { "name": "critical", "description": "Observed or officially reported exploitation against this product, on this asset." }
+          ]
+        },
+        "needs_analyst_review": {
+          "type": "noul",
+          "instructions": "Answer yes if a human could plausibly disagree with accepting this risk, which for most findings is no."
+        }
+      }
+    },
+    {
+      "id": "ambiguous-by-design",
+      "name": "Rubric probe: honest ambiguity",
+      "description": "Criteria that deliberately overlap so no option is cleanly right. This is the set to use when demonstrating calibration: the answer should come back with low confidence and trip the analyst gate, which is what an epistemically honest model does with an unusable rubric.",
+      "questions": {
+        "next_action": {
+          "type": "choice",
+          "instructions": "Pick the next action using criteria that intentionally overlap; several options may fit at once.",
+          "criteria": {
+            "remediate-now": "The vulnerability is serious by CVSS, or the asset matters, or exploitation is possible.",
+            "sla-remediate": "The vulnerability needs fixing at some point, which is true of every finding.",
+            "accept-risk": "The risk may be tolerable given business priorities, or the asset may not matter much.",
+            "needs-intel": "More information might help, which is always arguably true."
+          }
+        },
+        "exploit_likelihood_30d": {
+          "type": "score",
+          "instructions": "Score the 30-day exploitation chance without using exposure, severity or exploitation reports, since those signals are said to be unreliable here.",
+          "criteria": [
+            { "name": "low", "description": "Feels unlikely." },
+            { "name": "elevated", "description": "Somewhat unlikely but worth watching." },
+            { "name": "high", "description": "Worth worrying about." },
+            { "name": "critical", "description": "Very worrying." }
+          ]
+        },
+        "needs_analyst_review": {
+          "type": "noul",
+          "instructions": "Answer yes if the review would help, or no if it would not, or yes if the decision is unclear; there is no rule for which reading to prefer."
+        }
+      }
+    }
+  ]
+}
