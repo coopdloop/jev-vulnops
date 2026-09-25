@@ -101,6 +101,7 @@ header {
 .slider { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 500; }
 .slider input[type="range"] { accent-color: var(--accent); width: 90px; }
 .slider span { color: var(--text); font-family: var(--mono); font-size: 12px; width: 34px; }
+.slider .gate-delta { width: auto; color: var(--muted); font-family: inherit; font-size: 11px; white-space: nowrap; }
 
 /* ---------- layout ---------- */
 .layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 56px); }
@@ -257,6 +258,8 @@ main { padding: 18px 22px 40px; overflow-y: auto; display: flex; flex-direction:
 .frow:focus-visible, .vuln-list li:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .frow.selected { background: var(--accent-soft); border-color: var(--accent); }
 .frow.escalated { background: rgba(251, 191, 36, 0.05); }
+@keyframes flipflash { 0% { background: var(--accent-soft); } 100% { } }
+.frow.flipped { animation: flipflash 1.2s ease-out; }
 .frow.selected.escalated { background: rgba(251, 191, 36, 0.09); }
 .frow.pending, .frow.error { cursor: default; animation: none; }
 .feed-empty { padding: 18px 10px; text-align: center; color: var(--muted); font-size: 12.5px; }

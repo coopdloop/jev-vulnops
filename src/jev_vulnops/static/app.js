@@ -18,6 +18,7 @@ const state = {
   timer: null,
   running: false,
   threshold: 0.75,
+  flipped: null, // cve_ids whose routing flipped on the last gate drag
   runTotal: 0,
   runDone: 0,
   runStartedAt: 0,
@@ -234,6 +235,29 @@ function renderKpis() {
     : "cost appears once the first decision lands";
 }
 
+// Dragging the gate re-routes purely in the browser: count the flips and say so.
+function renderGateDelta(prevT) {
+  const el = $("gateDelta");
+  const rs = Object.values(state.results);
+  state.flipped = null;
+  if (!rs.length || prevT == null || prevT === state.threshold) { el.hidden = true; el.textContent = ""; return; }
+  const toEsc = [], toAuto = [];
+  for (const r of rs) {
+    const before = routeOf(r, prevT).disposition;
+    const after = routeOf(r, state.threshold).disposition;
+    if (before === after) continue;
+    (after === "ESCALATE" ? toEsc : toAuto).push(r.cve_id);
+  }
+  const flips = toEsc.length + toAuto.length;
+  if (!flips) { el.hidden = true; el.textContent = ""; return; }
+  state.flipped = new Set([...toEsc, ...toAuto]);
+  const parts = [];
+  if (toEsc.length) parts.push(`${toEsc.length} auto → escalate`);
+  if (toAuto.length) parts.push(`${toAuto.length} escalate → auto`);
+  el.textContent = `↔ ${flips} flip${flips > 1 ? "s" : ""} (${parts.join(", ")}) · 0 requests · $0.00`;
+  el.hidden = false;
+}
+
 function renderRunSummary() {
   const rs = Object.values(state.results);
   const el = $("runSummary");
@@ -310,7 +334,7 @@ function feedRow(id) {
     `<span class="c c-disp"><span class="disp ${rt.disposition}">${rt.disposition}</span></span>`,
   ];
   const reasons = rt.reasons.length ? `<div class="c-reason">⚠ ${esc(rt.reasons.join("; "))}</div>` : "";
-  return `<div class="frow${esc_ ? " escalated" : ""}${state.selected === id ? " selected" : ""}" tabindex="0" role="button"
+  return `<div class="frow${esc_ ? " escalated" : ""}${state.selected === id ? " selected" : ""}${state.flipped?.has(id) ? " flipped" : ""}" tabindex="0" role="button"
     aria-label="${esc(`${d.cve_id} on ${d.asset_name}: ${d.action}, confidence ${fmt(d.action_confidence)}, ${rt.disposition}`)}"
     data-cve="${esc(id)}">${cells.join("")}${reasons}</div>`;
 }
@@ -442,7 +466,8 @@ function setRunning(on) {
 
 function run() {
   stopRun(true);
-  state.results = {}; state.feed = {}; state.order = [];
+  state.results = {}; state.feed = {}; state.order = []; state.flipped = null;
+  $("gateDelta").hidden = true;
   state.runDone = 0; state.runTotal = state.vulns.length; state.runStartedAt = Date.now();
   renderAll();
   $("statusDot").className = "dot running";
@@ -758,8 +783,10 @@ document.querySelectorAll(".tab").forEach((t) => {
   $("search").oninput = (e) => { state.search = e.target.value; renderList(); renderFeed(); };
   $("sortSel").onchange = (e) => { state.sort = e.target.value; renderFeed(); };
   $("threshold").oninput = (e) => {
+    const prevT = state.threshold;
     state.threshold = Number(e.target.value);
     $("thresholdVal").textContent = fmt(state.threshold);
+    renderGateDelta(prevT);
     renderAll(); // re-route locally: the probabilities are already in hand
   };
   for (const el of [$("pgState"), $("pgQuestions")]) el.oninput = pgValidate;
