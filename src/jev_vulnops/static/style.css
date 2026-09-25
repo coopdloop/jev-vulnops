@@ -409,6 +409,18 @@ textarea:focus { outline: none; border-color: var(--accent); }
 }
 .gate-note b { color: var(--text); }
 
+.verdict {
+  margin-top: 12px;
+  padding: 9px 12px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+.vd-title { display: block; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
+.vd-chips { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; }
+.vd-chip { font-size: 12.5px; }
+.vd-p { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
 /* ---------- playground: JSON validity + repeat runs ---------- */
 textarea.invalid { border-color: var(--crit); }
 .json-err { min-height: 14px; margin-top: 5px; font-family: var(--mono); font-size: 11px; color: var(--crit); }

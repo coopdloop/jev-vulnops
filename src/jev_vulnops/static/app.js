@@ -125,6 +125,58 @@ function bars(probabilities, winner, kind, opts) {
   return `<div class="bars">${rows}</div>`;
 }
 
+/* ---------------- verdict: top-probability answer per question ---------------- */
+
+function verdictChip({ name, type, winner, p, idx, total }) {
+  const color =
+    type === "choice" ? ACTION_COLORS[winner] || ACCENT
+    : type === "score" ? LEVEL_COLORS[Math.round((idx || 0) * (LEVEL_COLORS.length - 1) / Math.max((total || 1) - 1, 1))]
+    : winner === "yes" ? "#fbbf24" : "#34d399";
+  return `<span class="vd-chip">${typeChip(type)} ${esc(name)} → <b style="color:${color}">${esc(winner)}</b> <span class="vd-p">${fmt(p)}</span></span>`;
+}
+
+function verdictHtml(parts) {
+  if (!parts.length) return "";
+  return `<div class="verdict"><span class="vd-title">jev's verdict — highest-probability answer per question</span><div class="vd-chips">${parts.map(verdictChip).join("")}</div></div>`;
+}
+
+// From raw answer objects (playground shape: {type, probabilities, ...}).
+function verdictFromAnswers(answers) {
+  const parts = [];
+  for (const [name, a] of Object.entries(answers || {})) {
+    if (a.type === "noul") {
+      const yes = Number(a.noul) || 0;
+      parts.push({ name, type: "noul", winner: yes >= 0.5 ? "yes" : "no", p: Math.max(yes, 1 - yes) });
+    } else if (a.type === "score") {
+      const labeled = labelScoreProbs(a.probabilities, a.legend);
+      const keys = Object.keys(labeled);
+      if (!keys.length) continue;
+      const winner = keys.reduce((b, k) => (labeled[k] > labeled[b] ? k : b), keys[0]);
+      parts.push({ name, type: "score", winner, p: labeled[winner], idx: keys.indexOf(winner), total: keys.length });
+    } else {
+      const probs = a.probabilities || {};
+      const keys = Object.keys(probs);
+      const winner = keys.length ? keys.reduce((b, k) => (probs[k] > probs[b] ? k : b), keys[0]) : a.choice;
+      if (winner == null) continue;
+      parts.push({ name, type: "choice", winner, p: Number(probs[winner] ?? a.confidence) || 0 });
+    }
+  }
+  return parts;
+}
+
+// From aggregated repeat-run groups: argmax of the mean probabilities.
+function verdictFromGroups(groups) {
+  const parts = [];
+  for (const [name, g] of Object.entries(groups || {})) {
+    const entries = Object.entries(g.probs || {});
+    if (!entries.length) continue;
+    const means = entries.map(([k, vals], i) => ({ k, i, mean: vals.reduce((s, v) => s + v, 0) / vals.length }));
+    const top = means.reduce((b, m) => (m.mean > b.mean ? m : b));
+    parts.push({ name, type: g.type, winner: top.k, p: top.mean, idx: top.i, total: entries.length });
+  }
+  return parts;
+}
+
 function mbar(value, color, gate, title) {
   return `<div class="mbar" title="${esc(title)}">${barTrack(value, color, gate)}<span class="mv">${fmt(value)}</span></div>`;
 }
@@ -444,6 +496,11 @@ function renderDetail() {
       <b>${rt.disposition}</b>
     </div>
     ${rt.reasons.length ? `<div class="reason">⚠ ${esc(rt.reasons.join("; "))}</div>` : ""}
+    ${verdictHtml(verdictFromAnswers({
+      next_action: { type: "choice", ...na },
+      exploit_likelihood_30d: { type: "score", ...sc },
+      needs_analyst_review: { type: "noul", noul: nl },
+    }))}
     ${payloadDetails(r.detail.request, r.detail.response)}
     </div>`;
   box.innerHTML = `<div class="detail-grid">${left}${right}</div>`;
@@ -694,9 +751,12 @@ function renderPgResults(list) {
   if (list.length > 1) {
     const groups = pgAggregate(list);
     for (const [name, g] of Object.entries(groups)) html += renderPgStable(name, g);
+    html += verdictHtml(verdictFromGroups(groups));
     html += payloadDetails(list[0].request, list[0].response);
   } else {
-    for (const [name, a] of Object.entries(list[0].response.answers || {})) html += renderPgAnswer(name, a);
+    const answers = list[0].response.answers || {};
+    for (const [name, a] of Object.entries(answers)) html += renderPgAnswer(name, a);
+    html += verdictHtml(verdictFromAnswers(answers));
     html += payloadDetails(list[0].request, list[0].response);
   }
   $("pgResult").innerHTML = html;
